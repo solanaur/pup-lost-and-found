@@ -1,0 +1,9 @@
+node_modules/
+venv/
+__pycache__/
+*.pyc
+.env
+data/*.sqlite
+data/*.sqlite-journal
+data/store.json
+.DS_Store

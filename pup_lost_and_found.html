@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PUP Parañaque — Lost & Found</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --maroon: #8B0000;
+    --maroon-dark: #6a0000;
+    --maroon-light: #b30000;
+    --gold: #FFD700;
+    --gold-dark: #e6c300;
+    --bg: #f5f3ef;
+    --surface: #ffffff;
+    --surface2: #f9f7f4;
+    --text: #1a1a1a;
+    --text2: #555;
+    --text3: #888;
+    --border: rgba(0,0,0,0.09);
+    --border2: rgba(0,0,0,0.15);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.07);
+    --shadow-md: 0 4px 24px rgba(0,0,0,0.10);
+  }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* NAV */
+  nav {
+    background: var(--maroon);
+    position: sticky; top: 0; z-index: 200;
+    padding: 0 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 58px;
+    box-shadow: 0 2px 16px rgba(139,0,0,0.25);
+  }
+  .nav-left { display: flex; align-items: center; gap: 12px; }
+  .nav-logo {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--gold); display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 15px; color: var(--maroon); flex-shrink: 0;
+  }
+  .nav-title { color: #fff; font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
+  .nav-sub { color: rgba(255,255,255,0.65); font-size: 11px; margin-top: 1px; }
+  .nav-right { display: flex; gap: 8px; align-items: center; }
+  .nav-user { display: flex; align-items: center; gap: 8px; color: #fff; font-size: 13px; }
+  .nav-avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--gold); display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; color: var(--maroon);
+  }
+
+  /* BUTTONS */
+  .btn {
+    padding: 7px 16px; border-radius: var(--radius-sm); font-size: 13px;
+    cursor: pointer; border: none; font-family: 'DM Sans', sans-serif; font-weight: 500;
+    transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-outline { background: transparent; border: 1px solid rgba(255,255,255,0.45); color: #fff; }
+  .btn-outline:hover { background: rgba(255,255,255,0.12); }
+  .btn-gold { background: var(--gold); color: var(--maroon); }
+  .btn-gold:hover { background: var(--gold-dark); }
+  .btn-primary { background: var(--maroon); color: #fff; }
+  .btn-primary:hover { background: var(--maroon-dark); }
+  .btn-ghost { background: transparent; border: 1px solid var(--border2); color: var(--text2); font-family: 'DM Sans', sans-serif; }
+  .btn-ghost:hover { background: var(--surface2); }
+  .btn-sm { padding: 4px 11px; font-size: 12px; }
+  .btn-approve { background: #EAF3DE; color: #3B6D11; border: none; }
+  .btn-approve:hover { background: #C0DD97; }
+  .btn-reject { background: #FCEBEB; color: #A32D2D; border: none; }
+  .btn-reject:hover { background: #F7C1C1; }
+  .btn-claim { background: #E1F5EE; color: #0F6E56; border: none; }
+  .btn-claim:hover { background: #9FE1CB; }
+
+  /* BADGES */
+  .badge {
+    display: inline-block; padding: 3px 9px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.2px;
+  }
+  .badge-lost { background: #FCEBEB; color: #A32D2D; }
+  .badge-found { background: #EAF3DE; color: #3B6D11; }
+  .badge-claimed { background: #E1F5EE; color: #0F6E56; }
+  .badge-pending { background: #FAEEDA; color: #854F0B; }
+
+  /* PAGES */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* NOTICE BAR */
+  .notice { padding: 9px 2rem; font-size: 12.5px; display: flex; align-items: center; gap: 8px; }
+  .notice-guest { background: #FAEEDA; color: #854F0B; border-bottom: 1px solid #FAC775; }
+  .notice-student { background: #EAF3DE; color: #3B6D11; border-bottom: 1px solid #C0DD97; }
+  .notice-admin { background: #EEEDFE; color: #3C3489; border-bottom: 1px solid #CECBF6; }
+
+  /* HERO */
+  .hero {
+    background: linear-gradient(135deg, var(--maroon) 0%, #6a0000 100%);
+    padding: 2.5rem 2rem; color: #fff; position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; right: -60px; top: -60px;
+    width: 280px; height: 280px; border-radius: 50%;
+    background: rgba(255,215,0,0.07);
+  }
+  .hero::after {
+    content: ''; position: absolute; right: 40px; bottom: -80px;
+    width: 180px; height: 180px; border-radius: 50%;
+    background: rgba(255,215,0,0.05);
+  }
+  .hero h1 { font-family: 'DM Serif Display', serif; font-size: 26px; font-weight: 400; margin-bottom: 6px; }
+  .hero p { font-size: 13.5px; opacity: 0.78; max-width: 480px; line-height: 1.6; }
+  .hero-stats { display: flex; gap: 1.5rem; margin-top: 1.25rem; }
+  .hero-stat { text-align: center; }
+  .hero-stat .num { font-size: 22px; font-weight: 600; color: var(--gold); }
+  .hero-stat .lbl { font-size: 11px; opacity: 0.7; margin-top: 2px; }
+
+  /* TOOLBAR */
+  .toolbar {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 10px 2rem; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  .filters { display: flex; gap: 6px; }
+  .filter-btn {
+    padding: 5px 14px; border-radius: 20px; font-size: 12.5px; cursor: pointer;
+    border: 1px solid var(--border2); background: var(--surface2);
+    color: var(--text2); font-family: 'DM Sans', sans-serif; font-weight: 500; transition: all 0.15s;
+  }
+  .filter-btn.active { background: var(--maroon); color: #fff; border-color: var(--maroon); }
+  .filter-btn:hover:not(.active) { border-color: var(--maroon); color: var(--maroon); }
+
+  /* GRID */
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 14px; padding: 1.5rem 2rem;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; cursor: pointer; transition: all 0.18s; box-shadow: var(--shadow);
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--border2); }
+  .card-img {
+    width: 100%; height: 120px; background: var(--surface2);
+    display: flex; align-items: center; justify-content: center; font-size: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-body { padding: 12px 14px; }
+  .card-title { font-size: 13.5px; font-weight: 600; color: var(--text); margin: 6px 0 4px; }
+  .card-meta { font-size: 11.5px; color: var(--text3); }
+  .card-loc { font-size: 11.5px; color: var(--text2); margin-top: 5px; display: flex; align-items: center; gap: 4px; }
+
+  /* LOGIN */
+  .login-wrap {
+    min-height: calc(100vh - 58px); display: flex; align-items: center; justify-content: center;
+    padding: 2rem; background: var(--bg);
+  }
+  .login-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 2rem; width: 340px; box-shadow: var(--shadow-md);
+  }
+  .login-logo {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: var(--maroon); display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1rem; box-shadow: 0 4px 16px rgba(139,0,0,0.3);
+  }
+  .login-logo span { font-size: 22px; font-weight: 700; color: var(--gold); }
+  .login-title { text-align: center; font-family: 'DM Serif Display', serif; font-size: 20px; margin-bottom: 4px; }
+  .login-sub { text-align: center; font-size: 12.5px; color: var(--text2); margin-bottom: 1.5rem; }
+  .field { margin-bottom: 12px; }
+  .field label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 5px; font-weight: 500; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--border2);
+    border-radius: var(--radius-sm); background: var(--surface2);
+    color: var(--text); font-size: 13.5px; font-family: 'DM Sans', sans-serif;
+    transition: border-color 0.15s; outline: none;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--maroon); }
+  .field textarea { height: 80px; resize: none; }
+  .quick-links { font-size: 11.5px; color: var(--text3); margin-bottom: 12px; }
+  .quick-links a { color: var(--maroon); cursor: pointer; text-decoration: underline; }
+
+  /* ADMIN */
+  .admin-wrap { padding: 1.5rem 2rem; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 1.25rem; }
+  .tab {
+    padding: 7px 16px; border-radius: var(--radius-sm); font-size: 13px; cursor: pointer;
+    border: 1px solid var(--border2); background: var(--surface2);
+    color: var(--text2); font-family: 'DM Sans', sans-serif; font-weight: 500;
+  }
+  .tab.active { background: var(--maroon); color: #fff; border-color: var(--maroon); }
+  .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { padding: 10px 14px; text-align: left; font-weight: 600; font-size: 12px; color: var(--text2); background: var(--surface2); border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  .action-btns { display: flex; gap: 6px; }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5); z-index: 500;
+    align-items: center; justify-content: center; padding: 1rem;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: var(--radius);
+    padding: 1.75rem; width: 100%; max-width: 400px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2); animation: slideUp 0.2s ease;
+  }
+  @keyframes slideUp { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
+  .modal h2 { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; margin-bottom: 4px; }
+  .modal .sub { font-size: 12.5px; color: var(--text2); margin-bottom: 1.25rem; }
+  .modal-footer { display: flex; gap: 8px; margin-top: 1.25rem; }
+  .modal-footer .btn { flex: 1; justify-content: center; padding: 10px; }
+
+  /* SUCCESS */
+  .success-icon {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: #EAF3DE; display: flex; align-items: center; justify-content: center;
+    font-size: 26px; margin: 0 auto 1rem;
+  }
+
+  /* EMPTY STATE */
+  .empty { text-align: center; padding: 3rem 1rem; color: var(--text3); }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.5; }
+  .empty p { font-size: 14px; }
+
+  @media (max-width: 600px) {
+    .hero h1 { font-size: 20px; }
+    .hero-stats { gap: 1rem; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; padding: 1rem; }
+    nav { padding: 0 1rem; }
+    .toolbar { padding: 10px 1rem; }
+    .admin-wrap { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-left">
+    <div class="nav-logo">P</div>
+    <div>
+      <div class="nav-title">PUP Lost &amp; Found</div>
+      <div class="nav-sub">Parañaque City Campus</div>
+    </div>
+  </div>
+  <div class="nav-right" id="nav-right">
+    <button class="btn btn-outline" onclick="showPage('login')">Log in</button>
+  </div>
+</nav>
+
+<!-- HOME PAGE (GUEST) -->
+<div id="page-home" class="page active">
+  <div class="notice notice-guest">
+    <span>ℹ</span> You're browsing as a guest. <a href="#" onclick="showPage('login');return false;" style="color:#854F0B;font-weight:600;margin-left:4px">Log in</a>&nbsp;to post a lost or found item.
+  </div>
+  <div class="hero">
+    <h1>Lost something on campus?</h1>
+    <p>Browse all reported lost &amp; found items from the PUP Parañaque community. Log in to submit your own report.</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num" id="stat-active">—</div><div class="lbl">Active items</div></div>
+      <div class="hero-stat"><div class="num" id="stat-found">—</div><div class="lbl">Found</div></div>
+      <div class="hero-stat"><div class="num" id="stat-claimed">—</div><div class="lbl">Reunited</div></div>
+    </div>
+  </div>
+  <div class="toolbar">
+    <div class="filters" id="home-filters">
+      <button class="filter-btn active" onclick="filter('home','all',this)">All</button>
+      <button class="filter-btn" onclick="filter('home','lost',this)">Lost</button>
+      <button class="filter-btn" onclick="filter('home','found',this)">Found</button>
+      <button class="filter-btn" onclick="filter('home','claimed',this)">Claimed</button>
+    </div>
+  </div>
+  <div class="grid" id="grid-home"></div>
+</div>
+
+<!-- LOGIN PAGE -->
+<div id="page-login" class="page">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo"><span>P</span></div>
+      <div class="login-title">Welcome back, PUPian</div>
+      <div class="login-sub">Sign in with your PUP-SIS credentials</div>
+      <div class="field"><label>Student Number</label><input type="text" id="l-user" placeholder="e.g. 2021-00001-PQ-0"/></div>
+      <div class="field"><label>Password</label><input type="password" id="l-pass" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+      <div class="quick-links">Demo: <a onclick="qLogin('student')">Student</a> &nbsp;|&nbsp; <a onclick="qLogin('admin')">Admin</a></div>
+      <button class="btn btn-primary" style="width:100%;padding:11px;font-size:14px;justify-content:center" onclick="doLogin()">Sign in</button>
+      <button class="btn btn-ghost" style="width:100%;padding:11px;margin-top:8px;font-size:13px;justify-content:center" onclick="showPage('home')">← Back to browse</button>
+    </div>
+  </div>
+</div>
+
+<!-- STUDENT PAGE -->
+<div id="page-student" class="page">
+  <div class="notice notice-student">
+    ✓ Signed in as student — post a lost or found item below. All posts are reviewed by admin before going live.
+  </div>
+  <div class="hero">
+    <h1>Lost something on campus?</h1>
+    <p>Help your fellow PUPians by reporting lost or found items. Posts appear publicly once approved.</p>
+  </div>
+  <div class="toolbar">
+    <div class="filters" id="student-filters">
+      <button class="filter-btn active" onclick="filter('student','all',this)">All</button>
+      <button class="filter-btn" onclick="filter('student','lost',this)">Lost</button>
+      <button class="filter-btn" onclick="filter('student','found',this)">Found</button>
+    </div>
+    <button class="btn btn-gold" onclick="openPostModal()">+ Report an item</button>
+  </div>
+  <div class="grid" id="grid-student"></div>
+</div>
+
+<!-- ADMIN PAGE -->
+<div id="page-admin" class="page">
+  <div class="notice notice-admin">
+    ⚙ Admin panel — review and approve student submissions before they appear on the public board.
+  </div>
+  <div class="admin-wrap">
+    <div class="tabs">
+      <button class="tab active" onclick="adminTab('pending',this)">Pending approval</button>
+      <button class="tab" onclick="adminTab('live',this)">Live items</button>
+    </div>
+    <div id="admin-pending">
+      <div class="table-card">
+        <table>
+          <thead><tr><th>Item</th><th>Type</th><th>Location</th><th>Submitted by</th><th>Date</th><th>Action</th></tr></thead>
+          <tbody id="tbody-pending"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="admin-live" style="display:none">
+      <div class="table-card">
+        <table>
+          <thead><tr><th>Item</th><th>Type</th><th>Location</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="tbody-live"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- POST MODAL -->
+<div class="modal-overlay" id="post-modal">
+  <div class="modal">
+    <h2>Report an item</h2>
+    <p class="sub">Fill in the details. Your post goes to the admin for review before appearing publicly.</p>
+    <div class="field"><label>Type</label>
+      <select id="p-type"><option value="lost">I lost this item</option><option value="found">I found this item</option></select>
+    </div>
+    <div class="field"><label>Item name</label><input type="text" id="p-name" placeholder="e.g. Black umbrella"/></div>
+    <div class="field"><label>Last seen / found at</label><input type="text" id="p-loc" placeholder="e.g. Library, 2nd floor"/></div>
+    <div class="field"><label>Description</label><textarea id="p-desc" placeholder="Color, brand, distinctive features..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="submitPost()">Submit report</button>
+      <button class="btn btn-ghost" onclick="closePostModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUCCESS MODAL -->
+<div class="modal-overlay" id="success-modal">
+  <div class="modal" style="text-align:center;max-width:340px">
+    <div class="success-icon">✓</div>
+    <h2>Report submitted!</h2>
+    <p class="sub">Your item has been sent to the admin for approval. Once approved, it will appear on the public board.</p>
+    <button class="btn btn-primary" style="width:100%;padding:11px;justify-content:center" onclick="closeSuccessModal()">Done</button>
+  </div>
+</div>
+
+<script>
+var role = 'guest';
+
+var items = [
+  {id:1, type:'lost', name:'Black umbrella', loc:'Library, 2nd floor', date:'Apr 18', emoji:'☂️', status:'approved', by:'2021-00042-PQ-0'},
+  {id:2, type:'found', name:'Student ID card', loc:'Canteen entrance', date:'Apr 17', emoji:'🪪', status:'approved', by:'2021-00089-PQ-0'},
+  {id:3, type:'lost', name:'Scientific calculator', loc:'Room 301, Engineering Bldg', date:'Apr 16', emoji:'🔢', status:'approved', by:'2021-00015-PQ-0'},
+  {id:4, type:'found', name:'Green water bottle', loc:'Covered court', date:'Apr 15', emoji:'🍶', status:'claimed', by:'2021-00033-PQ-0'},
+  {id:5, type:'lost', name:'Phone charger (Type-C)', loc:'Computer lab', date:'Apr 14', emoji:'🔌', status:'approved', by:'2021-00071-PQ-0'},
+  {id:6, type:'found', name:'Eyeglasses (black frame)', loc:'Registrar queue area', date:'Apr 13', emoji:'👓', status:'approved', by:'2021-00055-PQ-0'},
+];
+
+var pending = [
+  {id:101, type:'lost', name:'Navy blue hoodie', loc:'Gymnasium', date:'Apr 19', emoji:'👕', status:'pending', by:'2021-00123-PQ-0'},
+  {id:102, type:'found', name:'USB flash drive', loc:'Faculty hallway', date:'Apr 19', emoji:'💾', status:'pending', by:'2021-00099-PQ-0'},
+];
+
+function showPage(p) {
+  document.querySelectorAll('.page').forEach(function(x){ x.classList.remove('active'); });
+  document.getElementById('page-' + p).classList.add('active');
+}
+
+function qLogin(r) {
+  document.getElementById('l-user').value = r === 'admin' ? 'admin' : '2021-00001-PQ-0';
+  document.getElementById('l-pass').value = 'password';
+}
+
+function doLogin() {
+  var u = document.getElementById('l-user').value.trim();
+  if (!u) { alert('Please enter your student number.'); return; }
+  if (u === 'admin') {
+    role = 'admin';
+    document.getElementById('nav-right').innerHTML =
+      '<div class="nav-user"><div class="nav-avatar">AD</div><span>Admin</span></div>' +
+      '<button class="btn btn-outline" onclick="doLogout()">Log out</button>';
+    showPage('admin');
+    renderAdmin();
+  } else {
+    role = 'student';
+    document.getElementById('nav-right').innerHTML =
+      '<div class="nav-user"><div class="nav-avatar">ST</div><span>' + u.substring(0,12) + '</span></div>' +
+      '<button class="btn btn-outline" onclick="doLogout()">Log out</button>';
+    showPage('student');
+    renderGrid('grid-student', 'all');
+  }
+}
+
+function doLogout() {
+  role = 'guest';
+  document.getElementById('nav-right').innerHTML = '<button class="btn btn-outline" onclick="showPage(\'login\')">Log in</button>';
+  showPage('home');
+  renderGrid('grid-home', 'all');
+  updateStats();
+}
+
+function makeCard(item) {
+  var badge = item.type === 'lost' ? '<span class="badge badge-lost">Lost</span>' : '<span class="badge badge-found">Found</span>';
+  if (item.status === 'claimed') badge = '<span class="badge badge-claimed">Claimed</span>';
+  return '<div class="card">' +
+    '<div class="card-img">' + item.emoji + '</div>' +
+    '<div class="card-body">' + badge +
+    '<div class="card-title">' + item.name + '</div>' +
+    '<div class="card-meta">' + item.date + '</div>' +
+    '<div class="card-loc">📍 ' + item.loc + '</div>' +
+    '</div></div>';
+}
+
+function renderGrid(gridId, filterType) {
+  var grid = document.getElementById(gridId);
+  var src = items.filter(function(i){ return i.status === 'approved' || i.status === 'claimed'; });
+  if (filterType === 'lost') src = src.filter(function(i){ return i.type === 'lost' && i.status !== 'claimed'; });
+  else if (filterType === 'found') src = src.filter(function(i){ return i.type === 'found' && i.status !== 'claimed'; });
+  else if (filterType === 'claimed') src = src.filter(function(i){ return i.status === 'claimed'; });
+  if (src.length === 0) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🔍</div><p>No items found.</p></div>';
+  } else {
+    grid.innerHTML = src.map(makeCard).join('');
+  }
+}
+
+function filter(page, type, el) {
+  document.querySelectorAll('#' + page + '-filters .filter-btn').forEach(function(b){ b.classList.remove('active'); });
+  el.classList.add('active');
+  renderGrid('grid-' + page, type);
+}
+
+function updateStats() {
+  var approved = items.filter(function(i){ return i.status === 'approved'; });
+  var found = items.filter(function(i){ return i.type === 'found' && i.status === 'approved'; });
+  var claimed = items.filter(function(i){ return i.status === 'claimed'; });
+  document.getElementById('stat-active').textContent = approved.length;
+  document.getElementById('stat-found').textContent = found.length;
+  document.getElementById('stat-claimed').textContent = claimed.length;
+}
+
+function renderAdmin() {
+  var tb = document.getElementById('tbody-pending');
+  if (pending.length === 0) {
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:2rem">No pending submissions</td></tr>';
+  } else {
+    tb.innerHTML = pending.map(function(i){
+      return '<tr><td>' + i.emoji + ' ' + i.name + '</td>' +
+        '<td><span class="badge ' + (i.type === 'lost' ? 'badge-lost' : 'badge-found') + '">' + i.type + '</span></td>' +
+        '<td>' + i.loc + '</td><td>' + i.by + '</td><td>' + i.date + '</td>' +
+        '<td><div class="action-btns">' +
+        '<button class="btn btn-sm btn-approve" onclick="approveItem(' + i.id + ')">Approve</button>' +
+        '<button class="btn btn-sm btn-reject" onclick="rejectItem(' + i.id + ')">Reject</button>' +
+        '</div></td></tr>';
+    }).join('');
+  }
+
+  var tb2 = document.getElementById('tbody-live');
+  var live = items.filter(function(i){ return i.status === 'approved' || i.status === 'claimed'; });
+  tb2.innerHTML = live.map(function(i){
+    var sc = i.status === 'claimed'
+      ? '<span class="badge badge-claimed">Claimed</span>'
+      : '<span class="badge" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border2)">Active</span>';
+    var action = i.status !== 'claimed'
+      ? '<button class="btn btn-sm btn-claim" onclick="markClaimed(' + i.id + ')">Mark claimed</button>' : '—';
+    return '<tr><td>' + i.emoji + ' ' + i.name + '</td>' +
+      '<td><span class="badge ' + (i.type === 'lost' ? 'badge-lost' : 'badge-found') + '">' + i.type + '</span></td>' +
+      '<td>' + i.loc + '</td><td>' + sc + '</td><td>' + action + '</td></tr>';
+  }).join('');
+}
+
+function approveItem(id) {
+  var idx = pending.findIndex(function(i){ return i.id === id; });
+  if (idx > -1) {
+    var item = pending.splice(idx, 1)[0];
+    item.status = 'approved';
+    items.unshift(item);
+    renderAdmin();
+    updateStats();
+  }
+}
+
+function rejectItem(id) {
+  var idx = pending.findIndex(function(i){ return i.id === id; });
+  if (idx > -1) { pending.splice(idx, 1); renderAdmin(); }
+}
+
+function markClaimed(id) {
+  var item = items.find(function(i){ return i.id === id; });
+  if (item) { item.status = 'claimed'; renderAdmin(); updateStats(); }
+}
+
+function adminTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  el.classList.add('active');
+  document.getElementById('admin-pending').style.display = tab === 'pending' ? 'block' : 'none';
+  document.getElementById('admin-live').style.display = tab === 'live' ? 'block' : 'none';
+}
+
+function openPostModal() {
+  document.getElementById('post-modal').classList.add('open');
+}
+function closePostModal() {
+  document.getElementById('post-modal').classList.remove('open');
+  document.getElementById('p-name').value = '';
+  document.getElementById('p-loc').value = '';
+  document.getElementById('p-desc').value = '';
+}
+function submitPost() {
+  var name = document.getElementById('p-name').value.trim();
+  var loc = document.getElementById('p-loc').value.trim();
+  var type = document.getElementById('p-type').value;
+  if (!name || !loc) { alert('Please fill in the item name and location.'); return; }
+  var emojis = { lost: '📦', found: '📦' };
+  pending.push({ id: Date.now(), type: type, name: name, loc: loc, date: 'Today', emoji: '📦', status: 'pending', by: '2021-00001-PQ-0' });
+  closePostModal();
+  document.getElementById('success-modal').classList.add('open');
+}
+function closeSuccessModal() {
+  document.getElementById('success-modal').classList.remove('open');
+}
+
+// Close modals on overlay click
+document.getElementById('post-modal').addEventListener('click', function(e){ if(e.target === this) closePostModal(); });
+document.getElementById('success-modal').addEventListener('click', function(e){ if(e.target === this) closeSuccessModal(); });
+
+// Init
+renderGrid('grid-home', 'all');
+updateStats();
+</script>
+</body>
+</html>
