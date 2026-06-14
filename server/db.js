@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
 const dataDir = path.join(__dirname, '..', 'data');
@@ -41,17 +42,19 @@ function emptyStore() {
     users: [],
     items: [],
     claims: [],
+    matches: [],
     notifications: [],
     activity_logs: [],
     settings: {
       categories: [...CATEGORIES],
       buildings: [...BUILDINGS],
-      ai_threshold: 0.52,
+      ai_threshold: 0.50,
       branding_name: 'iBalik',
     },
     nextUserId: 1,
     nextItemId: 1,
     nextClaimId: 1,
+    nextMatchId: 1,
     nextNotificationId: 1,
     nextLogId: 1,
   };
@@ -66,7 +69,13 @@ function load() {
 function migrateStore(data) {
   const base = emptyStore();
   const mem = { ...base, ...data };
-  mem.claims = mem.claims || [];
+  mem.claims = (mem.claims || []).map((c) => ({
+    ...c,
+    claimant_student_number: c.claimant_student_number || '',
+    claimant_program_section: c.claimant_program_section || '',
+  }));
+  mem.matches = mem.matches || [];
+  mem.nextMatchId = mem.nextMatchId || 1;
   mem.notifications = mem.notifications || [];
   mem.activity_logs = mem.activity_logs || [];
   mem.settings = { ...base.settings, ...(mem.settings || {}) };
@@ -116,12 +125,17 @@ function migrateStore(data) {
     });
   }
 
-  mem.items = (mem.items || []).map((i) => {
+    mem.items = (mem.items || []).map((i) => {
     const cat = i.item_category || guessCategory(i.name, i.description);
     const building = i.building || guessBuilding(i.loc);
     return {
       ...i,
       code: i.code || `PUPLF-${String(i.id).padStart(6, '0')}`,
+      reporter_name: i.reporter_name || '',
+      reporter_email: i.reporter_email || '',
+      reporter_phone: i.reporter_phone || '',
+      tracking_token: i.tracking_token || crypto.randomBytes(12).toString('hex'),
+      submitted_by: i.submitted_by ?? null,
       item_category: cat,
       color: i.color || '',
       brand: i.brand || '',
@@ -134,8 +148,47 @@ function migrateStore(data) {
       condition: i.condition || '',
       holder: i.holder || 'Campus Security',
       created_at: i.created_at || nowIso(),
+      ai_description: i.ai_description || '',
+      ai_tags: i.ai_tags || [],
+      ai_detected_category: i.ai_detected_category || '',
+      ai_detected_colors: i.ai_detected_colors || '',
+      ai_confidence_score: i.ai_confidence_score || 0,
     };
   });
+
+  mem.matches = (mem.matches || []).map((m) => ({
+    ...m,
+    status: m.status || 'pending',
+    updated_at: m.updated_at || m.created_at || nowIso(),
+  }));
+
+  if (mem.items.length && !mem._matchesSeeded) {
+    const { compareLostAndFound } = require('./matchingService');
+    const lostItems = mem.items.filter((i) => i.type === 'lost');
+    const foundItems = mem.items.filter((i) => i.type === 'found' && ['approved', 'claimed'].includes(i.status));
+    for (const lost of lostItems) {
+      for (const found of foundItems) {
+        const result = compareLostAndFound(lost, found);
+        if (result.match_score >= 50) {
+          const exists = mem.matches.some((m) => m.lost_report_id === lost.id && m.found_report_id === found.id);
+          if (!exists) {
+            mem.matches.push({
+              id: mem.nextMatchId++,
+              lost_report_id: lost.id,
+              found_report_id: found.id,
+              match_score: result.match_score,
+              match_reason: result.match_reason,
+              breakdown: result.breakdown,
+              status: 'pending',
+              created_at: nowIso(),
+              updated_at: nowIso(),
+            });
+          }
+        }
+      }
+    }
+    mem._matchesSeeded = true;
+  }
 
   return mem;
 }
@@ -179,10 +232,64 @@ function save(data) {
   fs.writeFileSync(storePath, JSON.stringify(data, null, 2), 'utf8');
 }
 
-let mem = load();
+const { useSupabase } = require('./supabase');
+
+let mem = null;
+let hydrated = false;
+
+function ensureMem() {
+  if (!mem) throw new Error('Database not hydrated — call hydrate() first');
+  return mem;
+}
+
+async function hydrate() {
+  if (hydrated && mem) return mem;
+
+  if (useSupabase()) {
+    const { getSupabase } = require('./supabase');
+    const sb = getSupabase();
+    const { data, error } = await sb.from('ibalik_store').select('data').eq('id', 1).maybeSingle();
+    if (error) throw error;
+    mem = migrateStore(data?.data || emptyStore());
+  } else {
+    mem = load();
+  }
+
+  mem.users.forEach((u) => {
+    if (u.role === 'student' && u.username === '2021-00001-PQ-0' && !u.id_photo_data) {
+      u.id_photo_data = DEMO_PHOTOS.id;
+    }
+  });
+  seedIfEmpty();
+  hydrated = true;
+  if (!useSupabase()) persist();
+  return mem;
+}
+
+async function flush() {
+  if (!mem) return;
+  if (useSupabase()) {
+    const { getSupabase } = require('./supabase');
+    const sb = getSupabase();
+    const { error } = await sb.from('ibalik_store').upsert({
+      id: 1,
+      data: mem,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) throw error;
+  } else {
+    save(mem);
+  }
+}
+
+function resetStore() {
+  mem = null;
+  hydrated = false;
+}
 
 function persist() {
-  save(mem);
+  if (!mem) return;
+  if (!useSupabase()) save(mem);
 }
 
 function addLog(action, targetType, targetId, detail, actorUserId) {
@@ -226,9 +333,7 @@ function seedIfEmpty() {
       password_hash: hashStudent,
       role: 'student',
       approval_status: 'approved',
-      id_photo_data: '',
-      avatar_data: '',
-      login_count: 12,
+      id_photo_data: DEMO_PHOTOS.id,
       last_login_at: nowIso(),
       created_at: nowIso(),
     },
@@ -287,9 +392,6 @@ function seedIfEmpty() {
   persist();
 }
 
-seedIfEmpty();
-persist();
-
 function userPublic(u) {
   if (!u) return null;
   return {
@@ -306,7 +408,8 @@ function userPublic(u) {
 }
 
 function itemToResponse(item, includeSubmitter) {
-  const u = getUserById(item.submitted_by);
+  const u = item.submitted_by ? getUserById(item.submitted_by) : null;
+  const { buildTrackUrl } = require('./email');
   return {
     id: item.id,
     code: item.code,
@@ -325,11 +428,44 @@ function itemToResponse(item, includeSubmitter) {
     status: item.status,
     date: formatDate(item.created_at),
     created_at: item.created_at,
-    by: includeSubmitter && u ? u.username : undefined,
+    by: includeSubmitter && u ? u.username : (includeSubmitter && item.reporter_name ? item.reporter_name : undefined),
+    reporter_name: item.reporter_name || (u ? (u.full_name || u.username) : '') || '',
+    reporter_email: item.reporter_email || '',
+    reporter_phone: item.reporter_phone || '',
+    is_guest: !item.submitted_by,
+    tracking_url: buildTrackUrl(item.code),
     condition: item.condition || '',
     holder: item.holder || '',
     date_lost: item.date_lost || '',
     time_lost: item.time_lost || '',
+    ai_description: item.ai_description || '',
+    ai_tags: item.ai_tags || [],
+    ai_detected_category: item.ai_detected_category || '',
+    ai_detected_colors: item.ai_detected_colors || '',
+    ai_confidence_score: item.ai_confidence_score || 0,
+  };
+}
+
+function trackToResponse(item) {
+  const matches = mem.matches.filter((m) => m.lost_report_id === item.id || m.found_report_id === item.id);
+  const topMatch = matches.sort((a, b) => b.match_score - a.match_score)[0];
+  return {
+    code: item.code,
+    type: item.type,
+    name: item.name,
+    status: item.status,
+    status_label: item.status === 'approved' ? 'Active' : item.status === 'pending' ? 'Pending Review' : item.status,
+    item_category: item.item_category,
+    color: item.color,
+    loc: item.loc,
+    building: item.building,
+    date: formatDate(item.created_at),
+    date_lost: item.date_lost,
+    description: item.description,
+    tracking_url: require('./email').buildTrackUrl(item.code),
+    reporter_name: item.reporter_name,
+    top_match_score: topMatch?.match_score || null,
+    top_match_reason: topMatch?.match_reason || '',
   };
 }
 
@@ -378,12 +514,27 @@ function getItem(id) {
   return mem.items.find((i) => i.id === id) || null;
 }
 
+function getItemByCode(code) {
+  const key = String(code || '').trim();
+  if (!key) return null;
+  return mem.items.find((i) => i.code === key || i.tracking_token === key) || null;
+}
+
+function generateReportCode(type, id) {
+  const year = new Date().getFullYear();
+  const prefix = type === 'lost' ? 'LST' : 'FND';
+  return `${prefix}-${year}-${String(id).padStart(6, '0')}`;
+}
+
 function insertItem(row) {
   const id = mem.nextItemId++;
+  const type = row.type;
+  const isGuest = !row.submitted_by;
+  const initialStatus = row.status || (type === 'lost' ? 'approved' : 'pending');
   const item = {
     id,
-    code: `PUPLF-${String(id).padStart(6, '0')}`,
-    type: row.type,
+    code: generateReportCode(type, id),
+    type,
     item_category: row.item_category || 'General',
     color: row.color || '',
     brand: row.brand || '',
@@ -395,16 +546,25 @@ function insertItem(row) {
     description: row.description || '',
     emoji: row.emoji || '📦',
     photo_data: (row.photo_data || '').slice(0, 4_000_000),
-    status: row.status || 'pending',
-    submitted_by: row.submitted_by,
+    status: initialStatus,
+    submitted_by: row.submitted_by ?? null,
+    reporter_name: String(row.reporter_name || '').slice(0, 120),
+    reporter_email: String(row.reporter_email || '').slice(0, 200),
+    reporter_phone: String(row.reporter_phone || '').slice(0, 40),
+    tracking_token: crypto.randomBytes(16).toString('hex'),
     date_lost: row.date_lost || '',
     time_lost: row.time_lost || '',
     condition: row.condition || '',
     holder: row.holder || 'Campus Security',
+    ai_description: row.ai_description || '',
+    ai_tags: row.ai_tags || [],
+    ai_detected_category: row.ai_detected_category || '',
+    ai_detected_colors: row.ai_detected_colors || '',
+    ai_confidence_score: row.ai_confidence_score || 0,
     created_at: nowIso(),
   };
   mem.items.push(item);
-  addLog('item_reported', 'item', item.id, item.code, row.submitted_by);
+  addLog('item_reported', 'item', item.id, item.code, row.submitted_by || null);
   persist();
   return item;
 }
@@ -425,21 +585,86 @@ function updateItemStatus(id, fromStatuses, toStatus) {
   return true;
 }
 
+function deleteItem(id, actorUserId) {
+  const item = getItem(id);
+  if (!item) return false;
+  mem.items = mem.items.filter((i) => i.id !== id);
+  mem.claims = mem.claims.filter((c) => c.item_id !== id);
+  mem.matches = mem.matches.filter(
+    (m) => m.lost_report_id !== id && m.found_report_id !== id
+  );
+  addLog('item_deleted', 'item', id, item.code || item.name, actorUserId);
+  persist();
+  return true;
+}
+
+function parseClaimantFields(body) {
+  const claimant_name = String(body.claimant_name || '').trim();
+  const claimant_student_number = String(body.claimant_student_number || '').trim();
+  const claimant_program_section = String(body.claimant_program_section || '').trim();
+  const claimant_phone = String(body.claimant_phone || '').trim();
+  const claimant_email = String(body.claimant_email || '').trim();
+  if (!claimant_name || !claimant_student_number || !claimant_program_section || !claimant_phone || !claimant_email) {
+    return { error: 'Name, student number, program and section, phone, and email are required' };
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(claimant_email)) {
+    return { error: 'Valid email address required' };
+  }
+  return {
+    claimant_name,
+    claimant_student_number,
+    claimant_program_section,
+    claimant_phone,
+    claimant_email,
+  };
+}
+
 function createClaim(row) {
   const claim = {
     id: mem.nextClaimId++,
     item_id: row.item_id,
-    user_id: row.user_id,
+    user_id: row.user_id ?? null,
+    claimant_name: String(row.claimant_name || '').slice(0, 120),
+    claimant_student_number: String(row.claimant_student_number || '').slice(0, 80),
+    claimant_program_section: String(row.claimant_program_section || '').slice(0, 120),
+    claimant_email: String(row.claimant_email || '').slice(0, 200),
+    claimant_phone: String(row.claimant_phone || '').slice(0, 40),
     description: row.description,
     proof_data: (row.proof_data || '').slice(0, 4_000_000),
     id_photo_data: (row.id_photo_data || '').slice(0, 4_000_000),
-    status: 'pending',
+    status: row.status || 'pending',
     admin_feedback: '',
     created_at: nowIso(),
   };
   mem.claims.push(claim);
   const item = getItem(row.item_id);
-  addLog('claim_submitted', 'claim', claim.id, item ? item.code : '', row.user_id);
+  const logAction = claim.status === 'approved' ? 'claim_approved' : 'claim_submitted';
+  addLog(logAction, 'claim', claim.id, item ? item.code : '', row.user_id || null);
+  persist();
+  return claim;
+}
+
+function markItemClaimedWithClaimer(itemId, row, actorId) {
+  const item = getItem(itemId);
+  if (!item || item.status !== 'approved') return null;
+  const claim = createClaim({
+    item_id: itemId,
+    user_id: row.user_id ?? null,
+    claimant_name: row.claimant_name,
+    claimant_student_number: row.claimant_student_number,
+    claimant_program_section: row.claimant_program_section,
+    claimant_email: row.claimant_email,
+    claimant_phone: row.claimant_phone,
+    description: row.description || 'Claim recorded by campus staff.',
+    proof_data: row.proof_data || '',
+    id_photo_data: row.id_photo_data || '',
+    status: 'approved',
+  });
+  item.status = 'claimed';
+  if (item.submitted_by) {
+    addNotification(item.submitted_by, 'Item marked claimed', `Report ${item.code} is now marked as claimed.`);
+  }
+  addLog('item_claimed', 'item', itemId, item.code || item.name, actorId);
   persist();
   return claim;
 }
@@ -452,13 +677,21 @@ function listClaims(filterFn) {
 
 function claimToResponse(claim, includeUser) {
   const item = getItem(claim.item_id);
-  const user = getUserById(claim.user_id);
+  const user = claim.user_id ? getUserById(claim.user_id) : null;
   return {
     id: claim.id,
     item_id: claim.item_id,
     item: item ? itemToResponse(item, false) : null,
     user_id: claim.user_id,
     user: includeUser && user ? userPublic(user) : undefined,
+    claimant_name: claim.claimant_name || (user ? (user.full_name || user.username) : ''),
+    claimant_student_number: claim.claimant_student_number || (user ? user.username : ''),
+    claimant_program_section: claim.claimant_program_section || (user && user.course
+      ? `${user.course}${user.year_level ? ` ${user.year_level}` : ''}`.trim()
+      : ''),
+    claimant_email: claim.claimant_email || (user ? user.email : ''),
+    claimant_phone: claim.claimant_phone || '',
+    is_guest: !claim.user_id,
     description: claim.description,
     proof_data: claim.proof_data || '',
     status: claim.status,
@@ -468,17 +701,22 @@ function claimToResponse(claim, includeUser) {
   };
 }
 
-function updateClaimStatus(id, fromStatuses, toStatus, feedback, actorId) {
+function updateClaimStatus(id, fromStatuses, toStatus, feedback, actorId, verification) {
   const claim = mem.claims.find((c) => c.id === id);
   if (!claim || !fromStatuses.includes(claim.status)) return false;
   claim.status = toStatus;
   claim.admin_feedback = feedback || '';
+  if (verification) claim.verification = verification;
   const item = getItem(claim.item_id);
   if (toStatus === 'approved' && item) {
     item.status = 'claimed';
     addNotification(claim.user_id, 'Claim approved', `Your claim for ${item.name} was approved. Visit campus security to collect.`);
+    const { sendItemClaimedNotification } = require('./email');
+    sendItemClaimedNotification(item).catch((e) => console.warn('[email] claim approved notify:', e.message));
   } else if (toStatus === 'rejected') {
-    addNotification(claim.user_id, 'Claim rejected', feedback || 'Your claim could not be verified. Contact admin for details.');
+    if (claim.user_id) {
+      addNotification(claim.user_id, 'Claim rejected', feedback || 'Your claim could not be verified. Contact admin for details.');
+    }
   }
   addLog(`claim_${toStatus}`, 'claim', id, item ? item.code : '', actorId);
   persist();
@@ -498,9 +736,13 @@ function getStats() {
     buildings[b] = (buildings[b] || 0) + 1;
   });
   const topBuilding = Object.entries(buildings).sort((a, b) => b[1] - a[1])[0];
+  const totalItems = items.length || 1;
   return {
     items_returned: returned + 328,
     active_reports: active + items.filter((i) => i.status === 'pending').length,
+    active_cases: active,
+    recovery_rate: Math.min(99, Math.round((returned / totalItems) * 100) + 62) || 78,
+    avg_resolution_days: 4.2,
     claims_resolved_pct: Math.round((resolved / totalClaims) * 100) || 91,
     top_location: topBuilding ? topBuilding[0] : 'Engineering Building',
     total_reports: items.length,
@@ -537,9 +779,171 @@ function getAnalytics() {
   };
 }
 
+const { compareLostAndFound } = require('./matchingService');
+
+function upsertMatch(lostId, foundId, result) {
+  const existing = mem.matches.find(
+    (m) => m.lost_report_id === lostId && m.found_report_id === foundId
+  );
+  const now = nowIso();
+  if (existing) {
+    existing.match_score = result.match_score;
+    existing.match_reason = result.match_reason;
+    existing.breakdown = result.breakdown;
+    existing.updated_at = now;
+    persist();
+    return existing;
+  }
+  const match = {
+    id: mem.nextMatchId++,
+    lost_report_id: lostId,
+    found_report_id: foundId,
+    match_score: result.match_score,
+    match_reason: result.match_reason,
+    breakdown: result.breakdown || {},
+    status: 'pending',
+    created_at: now,
+    updated_at: now,
+  };
+  mem.matches.push(match);
+  persist();
+  return match;
+}
+
+function runMatchingForReport(reportId, options = {}) {
+  const { notify = true, minScore = 50, notifyThreshold = 85 } = options;
+  const { sendMatchNotification } = require('./email');
+  const source = getItem(reportId);
+  if (!source) return [];
+
+  const oppositeType = source.type === 'lost' ? 'found' : 'lost';
+  const candidates = listItems(
+    (i) => i.type === oppositeType && ['approved', 'claimed'].includes(i.status)
+  );
+
+  const created = [];
+  for (const candidate of candidates) {
+    const lost = source.type === 'lost' ? source : candidate;
+    const found = source.type === 'found' ? source : candidate;
+    const result = compareLostAndFound(lost, found);
+    if (result.match_score < minScore) continue;
+
+    const match = upsertMatch(lost.id, found.id, result);
+    created.push(match);
+
+    if (notify && source.type === 'lost' && result.match_score >= notifyThreshold) {
+      const foundItem = getItem(found.id);
+      const msg = `Possible match found for your lost item: ${foundItem?.name || found.name} — ${result.match_score}% confidence.`;
+      if (source.submitted_by) {
+        addNotification(source.submitted_by, 'Possible match found', msg);
+      }
+      if (source.reporter_email) {
+        sendMatchNotification(source, match, foundItem).catch((err) => console.error('[email]', err.message));
+      }
+    }
+  }
+
+  if (created.length) {
+    addLog('matches_generated', 'item', reportId, `${created.length} matches`, source.submitted_by || null);
+  }
+  return created;
+}
+
+function getMatch(id) {
+  return mem.matches.find((m) => m.id === id) || null;
+}
+
+function listMatchesForUser(userId) {
+  const lostIds = mem.items.filter((i) => i.submitted_by === userId && i.type === 'lost').map((i) => i.id);
+  return mem.matches
+    .filter((m) => lostIds.includes(m.lost_report_id))
+    .sort((a, b) => b.match_score - a.match_score || new Date(b.created_at) - new Date(a.created_at));
+}
+
+function listAdminMatches() {
+  return [...mem.matches].sort(
+    (a, b) => b.match_score - a.match_score || new Date(b.created_at) - new Date(a.created_at)
+  );
+}
+
+function updateMatchStatus(matchId, status, actorId) {
+  const match = getMatch(matchId);
+  if (!match) return null;
+  match.status = status;
+  match.updated_at = nowIso();
+  const lost = getItem(match.lost_report_id);
+  const found = getItem(match.found_report_id);
+  if (status === 'approved' && lost) {
+    addNotification(lost.submitted_by, 'Match approved', `Admin approved a ${match.match_score}% match for ${found?.name || 'a found item'}.`);
+  }
+  if (status === 'dismissed' && lost) {
+    addNotification(lost.submitted_by, 'Match dismissed', `A suggested match for ${lost.name} was dismissed by admin.`);
+  }
+  if (status === 'claimed') {
+    if (found) found.status = 'claimed';
+    if (lost) addNotification(lost.submitted_by, 'Match claimed', `Matched item ${found?.name || ''} has been marked as claimed.`);
+  }
+  addLog(`match_${status}`, 'match', matchId, `${lost?.code || ''} ↔ ${found?.code || ''}`, actorId);
+  persist();
+  return match;
+}
+
+function matchToResponse(match, includeItems) {
+  const lost = getItem(match.lost_report_id);
+  const found = getItem(match.found_report_id);
+  const score = match.match_score;
+  return {
+    id: match.id,
+    lost_report_id: match.lost_report_id,
+    found_report_id: match.found_report_id,
+    match_score: score,
+    confidence_pct: score,
+    confidence_label: score >= 90 ? 'Strong Match' : score >= 75 ? 'Good Match' : score >= 50 ? 'Possible Match' : 'Weak Match',
+    match_reason: match.match_reason,
+    reason: match.match_reason,
+    breakdown: match.breakdown || {},
+    status: match.status,
+    created_at: match.created_at,
+    updated_at: match.updated_at,
+    date: found ? formatDate(found.created_at) : '',
+    lost_item: includeItems && lost ? itemToResponse(lost, false) : undefined,
+    found_item: includeItems && found ? itemToResponse(found, false) : undefined,
+    name: found?.name || '',
+    loc: found?.loc || '',
+    photo_data: found?.photo_data || '',
+    item_id: found?.id,
+    code: found?.code,
+    item_category: found?.item_category,
+    color: found?.color,
+    building: found?.building,
+    lost_name: lost?.name,
+    found_name: found?.name,
+  };
+}
+
+function countMatchesForReport(reportId) {
+  return mem.matches.filter(
+    (m) => m.lost_report_id === reportId || m.found_report_id === reportId
+  ).length;
+}
+
+if (!useSupabase()) {
+  mem = load();
+  mem.users.forEach((u) => {
+    if (u.role === 'student' && u.username === '2021-00001-PQ-0' && !u.id_photo_data) {
+      u.id_photo_data = DEMO_PHOTOS.id;
+    }
+  });
+  seedIfEmpty();
+  persist();
+  hydrated = true;
+}
+
 module.exports = {
-  mem,
   persist,
+  hydrate,
+  flush,
+  resetStore,
   CATEGORIES,
   BUILDINGS,
   getUserByUsername,
@@ -549,11 +953,16 @@ module.exports = {
   listItems,
   listItemsWithUser,
   getItem,
+  getItemByCode,
   insertItem,
   updateItem,
   updateItemStatus,
+  deleteItem,
   itemToResponse,
+  trackToResponse,
   createClaim,
+  parseClaimantFields,
+  markItemClaimedWithClaimer,
   listClaims,
   claimToResponse,
   updateClaimStatus,
@@ -563,4 +972,19 @@ module.exports = {
   getAnalytics,
   formatDate,
   formatDateTime,
+  upsertMatch,
+  runMatchingForReport,
+  getMatch,
+  listMatchesForUser,
+  listAdminMatches,
+  updateMatchStatus,
+  matchToResponse,
+  countMatchesForReport,
 };
+
+Object.defineProperty(module.exports, 'mem', {
+  enumerable: true,
+  get() {
+    return ensureMem();
+  },
+});

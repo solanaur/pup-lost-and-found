@@ -1,11 +1,12 @@
 const express = require('express');
-const { mem, persist, formatDateTime, getAnalytics } = require('../db');
+const db = require('../db');
+const { persist, formatDateTime, getAnalytics } = db;
 const { requireAuth, requireRole } = require('../auth');
 
 const router = express.Router();
 
 router.get('/notifications', requireAuth, (req, res) => {
-  const rows = mem.notifications
+  const rows = db.mem.notifications
     .filter((n) => n.user_id === req.user.sub)
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   res.json(
@@ -20,7 +21,7 @@ router.get('/notifications', requireAuth, (req, res) => {
 });
 
 router.patch('/notifications/:id/read', requireAuth, (req, res) => {
-  const row = mem.notifications.find(
+  const row = db.mem.notifications.find(
     (n) => n.id === Number(req.params.id) && n.user_id === req.user.sub
   );
   if (row) {
@@ -31,7 +32,7 @@ router.patch('/notifications/:id/read', requireAuth, (req, res) => {
 });
 
 router.patch('/notifications/read-all', requireAuth, (req, res) => {
-  mem.notifications
+  db.mem.notifications
     .filter((n) => n.user_id === req.user.sub)
     .forEach((n) => { n.is_read = 1; });
   persist();
@@ -39,11 +40,11 @@ router.patch('/notifications/read-all', requireAuth, (req, res) => {
 });
 
 router.get('/settings', (_req, res) => {
-  res.json(mem.settings);
+  res.json(db.mem.settings);
 });
 
 router.get('/admin/activity', requireAuth, requireRole('admin'), (_req, res) => {
-  const rows = [...mem.activity_logs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 100);
+  const rows = [...db.mem.activity_logs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 100);
   res.json(
     rows.map((r) => ({
       id: r.id,
@@ -58,13 +59,16 @@ router.get('/admin/activity', requireAuth, requireRole('admin'), (_req, res) => 
 
 router.get('/admin/users', requireAuth, requireRole('admin'), (_req, res) => {
   res.json(
-    mem.users.map((u) => ({
+    db.mem.users.map((u) => ({
       id: u.id,
       username: u.username,
       full_name: u.full_name,
       email: u.email,
+      course: u.course,
+      year_level: u.year_level,
       role: u.role,
       approval_status: u.approval_status,
+      id_photo_data: u.id_photo_data || '',
       login_count: u.login_count || 0,
       last_login_at: u.last_login_at ? formatDateTime(u.last_login_at) : '-',
       created_at: formatDateTime(u.created_at),

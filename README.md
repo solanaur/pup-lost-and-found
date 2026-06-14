@@ -9,7 +9,9 @@ npm install
 npm start
 ```
 
-Open http://localhost:3000
+Open http://localhost:3000 — single-page app with all **20 iBalik modules** (home, browse, item details, AI matches, reports, claims, notifications, profile, admin dashboard, pending reports, claim verification, users, AI monitoring, analytics, audit logs, login, register, FAQ).
+
+Use the maroon **Guest / Student / Admin** bar at the top to switch roles. The module strip on the home page jumps to any screen.
 
 **Demo login** (password: `password`):
 

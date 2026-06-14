@@ -41,21 +41,45 @@ const Api = {
   item(id) { return this.request(`/items/${id}`); },
   myItems() { return this.request('/items/mine'); },
   pendingItems() { return this.request('/items/pending'); },
+  adminAllItems() { return this.request('/items/admin/all'); },
   liveItems() { return this.request('/items/live'); },
+  trackReport(code) { return this.request(`/items/track/${encodeURIComponent(code)}`); },
   createItem(body) { return this.request('/items', { method: 'POST', body: JSON.stringify(body) }); },
   approveItem(id) { return this.request(`/items/${id}/approve`, { method: 'PATCH' }); },
   rejectItem(id) { return this.request(`/items/${id}/reject`, { method: 'PATCH' }); },
-  claimItemAdmin(id) { return this.request(`/items/${id}/claim`, { method: 'PATCH' }); },
+  deleteItem(id) { return this.request(`/items/${id}`, { method: 'DELETE' }); },
+  claimItemAdmin(id, body) {
+    return this.request(`/items/${id}/claim`, { method: 'PATCH', body: JSON.stringify(body || {}) });
+  },
   adminTracker() { return this.request('/items/admin/tracker'); },
 
   smartMatch(body) { return this.request('/ai/smart-match', { method: 'POST', body: JSON.stringify(body) }); },
+  analyzeImage(body) { return this.request('/ai/analyze-image', { method: 'POST', body: JSON.stringify(body) }); },
   enrich(body) { return this.request('/ai/enrich', { method: 'POST', body: JSON.stringify(body) }); },
+  suspendUser(id) { return this.request(`/auth/users/${id}/suspend`, { method: 'PATCH' }); },
+  activateUser(id) { return this.request(`/auth/users/${id}/activate`, { method: 'PATCH' }); },
+
+  aiMonitor() { return this.request('/ai/monitor'); },
+  myMatches() { return this.request('/matches/mine'); },
+  userMatches(userId) { return this.request(`/matches/user/${userId}`); },
+  runMatching(reportId) { return this.request(`/matches/run/${reportId}`, { method: 'POST' }); },
+  adminMatches() { return this.request('/admin/matches'); },
+  updateMatchStatus(id, status) {
+    return this.request(`/admin/matches/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+  },
   categorize(text) { return this.request('/ai/categorize', { method: 'POST', body: JSON.stringify({ text }) }); },
 
   myClaims() { return this.request('/claims/mine'); },
   pendingClaims() { return this.request('/claims/pending'); },
+  adminAllClaims() { return this.request('/claims/all'); },
   submitClaim(body) { return this.request('/claims', { method: 'POST', body: JSON.stringify(body) }); },
-  approveClaim(id) { return this.request(`/claims/${id}/approve`, { method: 'PATCH' }); },
+  submitGuestClaim(body) { return this.request('/claims/guest', { method: 'POST', body: JSON.stringify(body) }); },
+  approveClaim(id, body) {
+    return this.request(`/claims/${id}/approve`, {
+      method: 'PATCH',
+      body: JSON.stringify(body || {}),
+    });
+  },
   rejectClaim(id, feedback) { return this.request(`/claims/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ feedback }) }); },
 
   notifications() { return this.request('/system/notifications'); },

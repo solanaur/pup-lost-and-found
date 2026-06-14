@@ -1,15 +1,15 @@
 const express = require('express');
 const { login, signToken, verifyToken, requireAuth, requireRole, meFromToken, bcrypt } = require('../auth');
+const db = require('../db');
 const {
   getUserByUsername,
   createUser,
   userPublic,
   addNotification,
   addLog,
-  mem,
   persist,
   getUserById,
-} = require('../db');
+} = db;
 
 const router = express.Router();
 
@@ -56,6 +56,9 @@ router.post('/login', (req, res) => {
   if (result.error === 'pending') {
     return res.status(403).json({ error: result.message });
   }
+  if (result.error === 'suspended') {
+    return res.status(403).json({ error: result.message });
+  }
   addLog('login', 'user', result.id, result.username, result.id);
   const token = signToken(result);
   res.json({ token, user: userPublic(result) });
@@ -82,7 +85,7 @@ router.patch('/profile', requireAuth, (req, res) => {
 });
 
 router.get('/pending-users', requireAuth, requireRole('admin'), (_req, res) => {
-  const rows = mem.users
+  const rows = db.mem.users
     .filter((u) => u.approval_status === 'pending')
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   res.json(
@@ -119,6 +122,31 @@ router.patch('/users/:id/reject', requireAuth, requireRole('admin'), (req, res) 
   user.approval_status = 'rejected';
   addNotification(user.id, 'Account requires re-submission', 'Your signup was rejected. Contact admin with a valid school ID.');
   addLog('user_rejected', 'user', user.id, user.username, req.user.sub);
+  persist();
+  res.json({ ok: true });
+});
+
+router.patch('/users/:id/suspend', requireAuth, requireRole('admin'), (req, res) => {
+  const user = getUserById(Number(req.params.id));
+  if (!user || user.role === 'admin') {
+    return res.status(400).json({ error: 'Cannot suspend this user' });
+  }
+  user.approval_status = 'suspended';
+  addLog('user_suspended', 'user', user.id, user.username, req.user.sub);
+  persist();
+  res.json({ ok: true });
+});
+
+router.patch('/users/:id/activate', requireAuth, requireRole('admin'), (req, res) => {
+  const user = getUserById(Number(req.params.id));
+  if (!user || user.role === 'admin') {
+    return res.status(400).json({ error: 'Cannot modify this user' });
+  }
+  if (user.approval_status === 'pending') {
+    return res.status(400).json({ error: 'Approve pending registration first' });
+  }
+  user.approval_status = 'approved';
+  addLog('user_activated', 'user', user.id, user.username, req.user.sub);
   persist();
   res.json({ ok: true });
 });

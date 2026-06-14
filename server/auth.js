@@ -52,6 +52,9 @@ function login(username, password) {
   if (!row || !bcrypt.compareSync(password, row.password_hash)) {
     return null;
   }
+  if (row.approval_status === 'suspended') {
+    return { error: 'suspended', message: 'Account suspended. Contact the Lost & Found Office.' };
+  }
   if (row.approval_status !== 'approved') {
     return { error: 'pending', message: 'Account pending admin approval' };
   }
