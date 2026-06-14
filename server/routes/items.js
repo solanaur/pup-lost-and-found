@@ -128,6 +128,12 @@ router.post('/', authOptional, async (req, res) => {
       return res.status(400).json({ error: 'Valid email address required' });
     }
   }
+  if (reporter_phone) {
+    reporter_phone = reporter_phone.replace(/\D/g, '');
+    if (reporter_phone.length !== 11) {
+      return res.status(400).json({ error: 'Contact number must be exactly 11 digits' });
+    }
+  }
 
   const combined = `${body.name} ${body.description || ''} ${body.loc}`;
   let aiFields = {

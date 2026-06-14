@@ -613,19 +613,21 @@ function bindEvents() {
         return;
       }
       if (action === 'use-ai-suggestions') {
+        collectWizardFields();
         const a = state.wizard.aiAnalysis;
         if (!a) return toast('Upload a photo first');
         state.wizard.name = a.name || state.wizard.name;
         state.wizard.item_category = a.item_category || a.ai_detected_category;
         state.wizard.color = a.color || a.ai_detected_colors;
         state.wizard.brand = a.brand || state.wizard.brand;
-        state.wizard.description = a.ai_description || a.description;
+        state.wizard.description = cleanAiDescription(a.ai_description || a.description);
         toast('AI suggestions applied');
         render();
         return;
       }
       if (action === 'regenerate-ai') {
         if (!state.wizard.photo_data) return toast('Upload a photo first');
+        collectWizardFields();
         try {
           await runPhotoAnalysis(state.wizard.photo_data, {
             name: state.wizard.name,
@@ -717,6 +719,7 @@ function bindEvents() {
   document.querySelectorAll('[data-action="report-photo"]').forEach((inp) => {
     inp.onchange = async () => {
       readFile(inp, async (d) => {
+        collectWizardFields();
         state.wizard.photo_data = d;
         toast('Photo attached — analyzing…');
         try {
@@ -728,6 +731,8 @@ function bindEvents() {
       });
     };
   });
+
+  bindPhoneInputs();
 
   const reportForm = document.querySelector('[data-action="report-submit"]');
   if (reportForm) {
@@ -742,6 +747,9 @@ function bindEvents() {
         return;
       }
       collectWizardFields();
+      const phoneCheck = validatePhone11(state.wizard.reporter_phone);
+      if (phoneCheck.error) return toast(phoneCheck.error);
+      state.wizard.reporter_phone = phoneCheck.phone;
       try {
         const created = await Api.createItem({
           type,
@@ -827,16 +835,49 @@ function bindEvents() {
   });
 }
 
+function cleanAiDescription(text) {
+  return String(text || '')
+    .replace(/\s*Add unique details in the description field\.?\s*/gi, '')
+    .trim();
+}
+
+function sanitizePhoneInput(value) {
+  return String(value || '').replace(/\D/g, '').slice(0, 11);
+}
+
+function validatePhone11(value, { required = false } = {}) {
+  const phone = sanitizePhoneInput(value);
+  if (!phone) {
+    return required ? { error: 'Contact number must be exactly 11 digits' } : { phone: '' };
+  }
+  if (phone.length !== 11) return { error: 'Contact number must be exactly 11 digits' };
+  return { phone };
+}
+
+function bindPhoneInputs() {
+  document.querySelectorAll('input[name="reporter_phone"], input[name="claimant_phone"]').forEach((inp) => {
+    inp.setAttribute('maxlength', '11');
+    inp.setAttribute('inputmode', 'numeric');
+    inp.setAttribute('pattern', '[0-9]{11}');
+    inp.oninput = () => {
+      const next = sanitizePhoneInput(inp.value);
+      if (inp.value !== next) inp.value = next;
+    };
+  });
+}
+
 function applyAiAnalysis(analysis) {
+  if (!analysis) return;
   state.wizard.aiAnalysis = analysis;
-  state.wizard.ai_description = analysis.ai_description;
-  state.wizard.ai_tags = analysis.ai_tags;
-  state.wizard.ai_detected_category = analysis.ai_detected_category;
-  state.wizard.ai_detected_colors = analysis.ai_detected_colors;
-  state.wizard.ai_confidence_score = analysis.ai_confidence_score;
+  state.wizard.ai_description = cleanAiDescription(analysis.ai_description || analysis.description);
+  state.wizard.ai_tags = analysis.ai_tags || [];
+  state.wizard.ai_detected_category = analysis.ai_detected_category || analysis.item_category || '';
+  state.wizard.ai_detected_colors = analysis.ai_detected_colors || analysis.color || '';
+  state.wizard.ai_confidence_score = analysis.ai_confidence_score || 0;
 }
 
 async function runPhotoAnalysis(photoData, opts = {}) {
+  collectWizardFields();
   let client_hints = null;
   if (typeof window.analyzePhotoLocally === 'function') {
     try {
@@ -989,7 +1030,7 @@ function claimIdentityFieldsHtml(prefill = {}) {
       <div class="field"><label>Full Name</label><input name="claimant_name" required placeholder="Juan Dela Cruz" value="${esc(prefill.name || '')}"></div>
       <div class="field"><label>Student Number</label><input name="claimant_student_number" required placeholder="2021-00001-PQ-0" value="${esc(prefill.studentNumber || '')}"></div>
       <div class="field" style="grid-column:1/-1"><label>Program and Section</label><input name="claimant_program_section" required placeholder="BSIT 3-1" value="${esc(prefill.programSection || '')}"></div>
-      <div class="field"><label>Contact Number</label><input name="claimant_phone" required placeholder="09XX XXX XXXX" value="${esc(prefill.phone || '')}"></div>
+      <div class="field"><label>Contact Number</label><input name="claimant_phone" required placeholder="09123456789" maxlength="11" inputmode="numeric" pattern="[0-9]{11}" value="${esc(prefill.phone || '')}"></div>
       <div class="field"><label>Email Address</label><input name="claimant_email" type="email" required placeholder="you@iskolarngbayan.pup.edu.ph" value="${esc(prefill.email || '')}"></div>
     </div>`;
 }
@@ -1037,7 +1078,10 @@ function openAdminClaimModal(itemId) {
   overlay.querySelector('#adminClaimForm').onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
+    const phoneCheck = validatePhone11(fd.get('claimant_phone'), { required: true });
+    if (phoneCheck.error) return toast(phoneCheck.error);
     const payload = readClaimIdentityFields(fd);
+    payload.claimant_phone = phoneCheck.phone;
     payload.description = String(fd.get('description') || '').trim();
     try {
       await Api.claimItemAdmin(itemId, payload);
@@ -1047,6 +1091,7 @@ function openAdminClaimModal(itemId) {
     } catch (err) { toast(err.message); }
   };
   hydrateIcons();
+  bindPhoneInputs();
 }
 
 function openClaimModal(itemId) {
@@ -1081,9 +1126,13 @@ function openClaimModal(itemId) {
     e.preventDefault();
     if (!proof) return toast('Upload proof photo');
     const fd = new FormData(e.target);
+    const phoneCheck = validatePhone11(fd.get('claimant_phone'), { required: true });
+    if (phoneCheck.error) return toast(phoneCheck.error);
+    const identity = readClaimIdentityFields(fd);
+    identity.claimant_phone = phoneCheck.phone;
     const payload = {
       item_id: Number(itemId),
-      ...readClaimIdentityFields(fd),
+      ...identity,
       description: fd.get('description'),
       proof_data: proof,
       id_photo_data: idp,
@@ -1099,6 +1148,7 @@ function openClaimModal(itemId) {
     } catch (err) { toast(err.message); }
   };
   hydrateIcons();
+  bindPhoneInputs();
 }
 
 async function init() {

@@ -610,11 +610,15 @@ function parseClaimantFields(body) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(claimant_email)) {
     return { error: 'Valid email address required' };
   }
+  const phoneDigits = claimant_phone.replace(/\D/g, '');
+  if (phoneDigits.length !== 11) {
+    return { error: 'Contact number must be exactly 11 digits' };
+  }
   return {
     claimant_name,
     claimant_student_number,
     claimant_program_section,
-    claimant_phone,
+    claimant_phone: phoneDigits,
     claimant_email,
   };
 }

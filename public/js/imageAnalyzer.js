@@ -88,7 +88,7 @@
       suggested_colors: colorLabel,
       suggested_tags: tags,
       material: 'Unknown',
-      description: `A ${primary}-colored campus item. Add unique details in the description field.`,
+      description: `A ${primary}-colored campus item photographed on campus grounds.`,
     };
   }
 

@@ -526,11 +526,16 @@
     </article>`;
   }
 
+  function cleanAiDesc(text) {
+    return String(text || '').replace(/\s*Add unique details in the description field\.?\s*/gi, '').trim();
+  }
+
   function aiAnalysisPanel(analysis) {
     if (!analysis) return '';
     const a = analysis;
     const tags = (a.ai_tags || []).map((t) => `<span class="ai-tag">${esc(t)}</span>`).join('');
     const conf = a.confidence || {};
+    const desc = cleanAiDesc(a.ai_description || a.description);
     const fact = (label, value) => `<div class="ai-fact-row"><span class="ai-fact-label">${label}</span><strong class="ai-fact-value">${esc(value || 'Unknown')}</strong></div>`;
     return `<div class="ai-analysis-card">
       <div class="ai-analysis-head">
@@ -547,7 +552,7 @@
         </div>
         <div class="ai-analysis-desc">
           <span class="ai-fact-label">Description</span>
-          <p class="ai-desc-text">${esc(a.ai_description || a.description)}</p>
+          <p class="ai-desc-text">${esc(desc)}</p>
           ${tags ? `<span class="ai-fact-label">Tags</span><div class="ai-tags">${tags}</div>` : ''}
         </div>
         <div class="ai-analysis-confidence">
@@ -846,7 +851,7 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="field" style="grid-column:1/-1"><label>Full Name</label><input name="reporter_name" value="${esc(w.reporter_name || '')}" required placeholder="Juan Dela Cruz"></div>
         <div class="field"><label>Email Address</label><input name="reporter_email" type="email" value="${esc(w.reporter_email || '')}" required placeholder="you@iskolarngbayan.pup.edu.ph"></div>
-        <div class="field"><label>Contact Number</label><input name="reporter_phone" value="${esc(w.reporter_phone || '')}" placeholder="09XX XXX XXXX"></div>
+        <div class="field"><label>Contact Number</label><input name="reporter_phone" value="${esc(w.reporter_phone || '')}" placeholder="09123456789" maxlength="11" inputmode="numeric" pattern="[0-9]{11}"></div>
       </div>
     </div>`;
   }
