@@ -664,6 +664,11 @@ function markItemClaimedWithClaimer(itemId, row, actorId) {
   if (item.submitted_by) {
     addNotification(item.submitted_by, 'Item marked claimed', `Report ${item.code} is now marked as claimed.`);
   }
+  const { sendClaimApprovedNotification, sendItemClaimedNotification } = require('./email');
+  sendClaimApprovedNotification(claim, item).catch((e) => console.warn('[email] admin mark claimed notify:', e.message));
+  if (item.reporter_email) {
+    sendItemClaimedNotification(item).catch((e) => console.warn('[email] admin mark claimed reporter:', e.message));
+  }
   addLog('item_claimed', 'item', itemId, item.code || item.name, actorId);
   persist();
   return claim;
@@ -678,7 +683,7 @@ function listClaims(filterFn) {
 function claimToResponse(claim, includeUser) {
   const item = getItem(claim.item_id);
   const user = claim.user_id ? getUserById(claim.user_id) : null;
-  return {
+  const response = {
     id: claim.id,
     item_id: claim.item_id,
     item: item ? itemToResponse(item, false) : null,
@@ -693,15 +698,17 @@ function claimToResponse(claim, includeUser) {
     claimant_phone: claim.claimant_phone || '',
     is_guest: !claim.user_id,
     description: claim.description,
-    proof_data: claim.proof_data || '',
+    proof_data: includeUser ? (claim.proof_data || '') : '',
+    id_photo_data: includeUser ? (claim.id_photo_data || '') : '',
     status: claim.status,
     admin_feedback: claim.admin_feedback || '',
     date: formatDate(claim.created_at),
     created_at: claim.created_at,
   };
+  return response;
 }
 
-function updateClaimStatus(id, fromStatuses, toStatus, feedback, actorId, verification) {
+async function updateClaimStatus(id, fromStatuses, toStatus, feedback, actorId, verification) {
   const claim = mem.claims.find((c) => c.id === id);
   if (!claim || !fromStatuses.includes(claim.status)) return false;
   claim.status = toStatus;
@@ -710,9 +717,27 @@ function updateClaimStatus(id, fromStatuses, toStatus, feedback, actorId, verifi
   const item = getItem(claim.item_id);
   if (toStatus === 'approved' && item) {
     item.status = 'claimed';
-    addNotification(claim.user_id, 'Claim approved', `Your claim for ${item.name} was approved. Visit campus security to collect.`);
-    const { sendItemClaimedNotification } = require('./email');
-    sendItemClaimedNotification(item).catch((e) => console.warn('[email] claim approved notify:', e.message));
+    mem.claims
+      .filter((c) => c.item_id === item.id && c.id !== id && c.status === 'pending')
+      .forEach((other) => {
+        other.status = 'rejected';
+        other.admin_feedback = 'Another claim was approved for this item.';
+        if (other.user_id) {
+          addNotification(other.user_id, 'Claim rejected', `Your claim for ${item.name} was not approved.`);
+        }
+      });
+    if (claim.user_id) {
+      addNotification(claim.user_id, 'Claim approved', `Your claim for ${item.name} was approved. Visit campus security to collect.`);
+    }
+    const { sendClaimApprovedNotification, sendItemClaimedNotification } = require('./email');
+    try {
+      await sendClaimApprovedNotification(claim, item);
+    } catch (e) {
+      console.warn('[email] claim approved notify claimant:', e.message);
+    }
+    if (item.reporter_email) {
+      sendItemClaimedNotification(item).catch((e) => console.warn('[email] claim approved notify reporter:', e.message));
+    }
   } else if (toStatus === 'rejected') {
     if (claim.user_id) {
       addNotification(claim.user_id, 'Claim rejected', feedback || 'Your claim could not be verified. Contact admin for details.');

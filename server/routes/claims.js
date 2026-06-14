@@ -111,19 +111,22 @@ router.post('/', requireAuth, requireRole('student'), async (req, res) => {
   res.status(201).json(claimToResponse(claim, false));
 });
 
-router.patch('/:id/approve', requireAuth, requireRole('admin'), (req, res) => {
+router.patch('/:id/approve', requireAuth, requireRole('admin'), async (req, res) => {
   const id = Number(req.params.id);
   const verification = (req.body && req.body.checklist) || null;
-  if (!updateClaimStatus(id, ['pending'], 'approved', 'Verified by admin.', req.user.sub, verification)) {
+  const ok = await updateClaimStatus(id, ['pending'], 'approved', 'Verified by admin.', req.user.sub, verification);
+  if (!ok) {
     return res.status(404).json({ error: 'Claim not found or not pending' });
   }
-  res.json({ ok: true });
+  const claim = db.mem.claims.find((c) => c.id === id);
+  res.json({ ok: true, claim: claim ? claimToResponse(claim, true) : null });
 });
 
-router.patch('/:id/reject', requireAuth, requireRole('admin'), (req, res) => {
+router.patch('/:id/reject', requireAuth, requireRole('admin'), async (req, res) => {
   const id = Number(req.params.id);
   const feedback = (req.body && req.body.feedback) || 'Could not verify ownership.';
-  if (!updateClaimStatus(id, ['pending'], 'rejected', feedback, req.user.sub)) {
+  const ok = await updateClaimStatus(id, ['pending'], 'rejected', feedback, req.user.sub);
+  if (!ok) {
     return res.status(404).json({ error: 'Claim not found or not pending' });
   }
   res.json({ ok: true });

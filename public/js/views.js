@@ -244,14 +244,14 @@
   }
 
   function pubHeader() {
-    const st = state();
     const authed = A().isAuthed();
     return `<header class="pub-header">
       <a href="#/home" class="brand" data-action="nav" data-path="home">
         ${pupSeal()}
-        <span><span class="brand-title">iBALIK</span><span class="brand-sub">PUP Parañaque Lost &amp; Found Portal</span></span>
+        <span class="brand-text"><span class="brand-title">iBALIK</span><span class="brand-sub">PUP Parañaque Lost &amp; Found Portal</span></span>
       </a>
-      <nav class="nav-links">
+      <button type="button" class="pub-menu-toggle" data-action="toggle-pub-nav" aria-expanded="false" aria-label="Open navigation menu">${icon('menu', 22)}</button>
+      <nav class="nav-links pub-nav-links" aria-label="Main navigation">
         <a href="#/browse" data-action="nav" data-path="browse">Browse Items</a>
         <a href="#/office" data-action="nav" data-path="office">Lost &amp; Found Office</a>
         <a href="#/faq" data-action="nav" data-path="faq">Help</a>
@@ -1332,6 +1332,7 @@
     const id = item.id;
     const pending = item.status === 'pending';
     const approved = item.status === 'approved';
+    const pendingClaimCount = adminReportRelatedClaims(item.id).filter((c) => c.status === 'pending').length;
     const moreItems = [];
     if (matchInfo.count) {
       moreItems.push(`<button type="button" class="ar-more-item" data-action="nav" data-path="admin/ai">${icon('sparkles', 14)} View ${matchInfo.count} AI Match${matchInfo.count === 1 ? '' : 'es'}</button>`);
@@ -1341,11 +1342,16 @@
         <button type="button" class="ar-admin-btn ar-admin-btn-more" data-action="toggle-admin-more-menu">${icon('more-horizontal', 14)} More Actions ${icon('chevron-down', 14)}</button>
         <div class="ar-more-dropdown">${moreItems.join('')}</div>
       </div>` : '';
+    const claimAction = approved
+      ? (pendingClaimCount
+        ? `<button type="button" class="ar-admin-btn ar-admin-btn-approve" data-action="nav" data-path="admin/claims">${icon('shield-check', 14)} Review ${pendingClaimCount} Pending Claim${pendingClaimCount === 1 ? '' : 's'}</button>`
+        : `<button type="button" class="ar-admin-btn ar-admin-btn-approve" data-action="admin-claim-item" data-id="${id}" data-type="${esc(item.type)}">${icon('package-check', 14)} Mark Claimed</button>`)
+      : '';
     const actionBtns = [
       pending ? `<button type="button" class="ar-admin-btn ar-admin-btn-approve" data-action="admin-approve-item" data-id="${id}">${icon('check', 14)} Approve Report</button>` : '',
       pending ? `<button type="button" class="ar-admin-btn ar-admin-btn-changes" data-action="admin-request-changes" data-id="${id}">${icon('pencil', 14)} Request Changes</button>` : '',
       pending ? `<button type="button" class="ar-admin-btn ar-admin-btn-reject" data-action="admin-reject-item" data-id="${id}">${icon('x', 14)} Reject Report</button>` : '',
-      approved ? `<button type="button" class="ar-admin-btn ar-admin-btn-approve" data-action="admin-claim-item" data-id="${id}" data-type="${esc(item.type)}">${icon('package-check', 14)} Mark Claimed</button>` : '',
+      claimAction,
       moreMenu,
     ].filter(Boolean).join('');
     if (!actionBtns) return '';
@@ -1437,6 +1443,7 @@
                   ${c.claimant_student_number ? `<span class="ar-claim-meta">${esc(c.claimant_student_number)}${c.claimant_program_section ? ` · ${esc(c.claimant_program_section)}` : ''}</span>` : ''}
                   ${c.claimant_email ? `<span class="ar-claim-meta">${esc(c.claimant_email)}${c.claimant_phone ? ` · ${esc(c.claimant_phone)}` : ''}</span>` : ''}
                   <p>${esc(c.description || '')}</p>
+                  ${c.status === 'pending' ? `<button type="button" class="ar-text-btn" data-action="nav" data-path="admin/claims">Review in Claims module</button>` : ''}
                 </div>`).join('')
     : '<p class="ar-claim-empty">No claims for this item yet.</p>'}
               </div>
@@ -1556,26 +1563,50 @@
     };
   }
 
+  function adminClaimProofSection(c) {
+    const proof = c.proof_data
+      ? `<button type="button" class="user-id-thumb user-id-thumb-sm" data-action="open-lightbox" data-src="${esc(c.proof_data)}"><img src="${esc(c.proof_data)}" alt="Proof of ownership"></button>`
+      : '<span class="muted" style="font-size:12px">No proof uploaded</span>';
+    const idPhoto = c.id_photo_data
+      ? `<button type="button" class="user-id-thumb user-id-thumb-sm" data-action="open-lightbox" data-src="${esc(c.id_photo_data)}"><img src="${esc(c.id_photo_data)}" alt="Valid ID"></button>`
+      : '<span class="muted" style="font-size:12px">No ID uploaded</span>';
+    return `
+      <div class="verify-panel">
+        <h4>Verification Photos</h4>
+        <p style="margin:12px 0 6px"><strong>Proof of ownership</strong></p>
+        ${proof}
+        <p style="margin:16px 0 6px"><strong>Valid ID</strong></p>
+        ${idPhoto}
+      </div>`;
+  }
+
   function adminClaimCard(c) {
     const info = claimantInfo(c);
-    return `<article class="card" style="margin-top:20px">
+    const guestTag = c.is_guest ? `<span class="status status-pending" style="margin-left:8px;font-size:11px">Guest</span>` : '';
+    return `<article class="card" style="margin-top:20px" id="admin-claim-${c.id}">
       <div class="verify-grid">
         <div class="verify-panel">
           <h4>Claimed Item</h4>
           <div style="display:flex;gap:12px;margin-top:12px">
             <div style="width:80px;height:80px;border-radius:8px;overflow:hidden;background:#eee">${c.item?.photo_data ? `<img src="${esc(c.item.photo_data)}" style="width:100%;height:100%;object-fit:cover">` : icon('image', 32)}</div>
-            <div><strong>${esc(c.item?.name)}</strong><p class="muted" style="font-size:13px;margin-top:6px">${esc(c.item?.description || '')}</p></div>
+            <div>
+              <strong>${esc(c.item?.name)}</strong>
+              <p class="muted" style="font-size:13px;margin-top:6px">${esc(c.item?.description || '')}</p>
+              <p class="muted" style="font-size:12px;margin-top:6px">${esc(c.item?.code || '')} · ${esc(c.item?.loc || '')}</p>
+              <button type="button" class="btn btn-ghost btn-sm" style="margin-top:8px;padding:0" data-action="open-item" data-id="${c.item_id}">View item page</button>
+            </div>
           </div>
         </div>
         <div class="verify-panel">
-          <h4>Claimant Information</h4>
+          <h4>Claimant Information${guestTag}</h4>
           <p><strong>Name:</strong> ${esc(info.name)}</p>
           <p><strong>Student Number:</strong> ${esc(info.studentNumber)}</p>
           <p><strong>Program and Section:</strong> ${esc(info.programSection)}</p>
           <p><strong>Contact Number:</strong> ${esc(info.phone)}</p>
           <p><strong>Email:</strong> ${esc(info.email)}</p>
-          <p style="margin-top:8px;font-size:14px">${esc(c.description)}</p>
+          <p style="margin-top:8px;font-size:14px"><strong>Owner description:</strong> ${esc(c.description)}</p>
         </div>
+        ${adminClaimProofSection(c)}
       </div>
       <ul class="verify-checklist">
         <li><input type="checkbox" id="chk-desc-${c.id}"> Correct description</li>

@@ -366,12 +366,35 @@ function readFile(input, cb) {
   fr.readAsDataURL(f);
 }
 
+function closePubNav() {
+  const header = document.querySelector('.pub-header');
+  if (!header) return;
+  header.classList.remove('is-nav-open');
+  const toggle = header.querySelector('[data-action="toggle-pub-nav"]');
+  if (toggle) toggle.setAttribute('aria-expanded', 'false');
+}
+
 function bindEvents() {
   document.querySelectorAll('[data-action]').forEach((el) => {
     el.onclick = async (e) => {
       const action = el.dataset.action;
-      if (action === 'nav') { e.preventDefault(); nav(el.dataset.path); return; }
-      if (action === 'logout') { Api.setToken(''); state.user = null; nav('home'); return; }
+      if (action === 'toggle-pub-nav') {
+        const header = el.closest('.pub-header');
+        if (!header) return;
+        const open = header.classList.toggle('is-nav-open');
+        el.setAttribute('aria-expanded', open ? 'true' : 'false');
+        el.innerHTML = icon(open ? 'x' : 'menu', 22);
+        hydrateIcons();
+        return;
+      }
+      if (action === 'nav') {
+        e.preventDefault();
+        closePubNav();
+        if (el.dataset.path === 'admin/claims') state.adminClaimsTab = 'pending';
+        nav(el.dataset.path);
+        return;
+      }
+      if (action === 'logout') { closePubNav(); Api.setToken(''); state.user = null; nav('home'); return; }
       if (action === 'open-item') { nav(`item/${el.dataset.id}`); return; }
       if (action === 'run-ai-search') {
         const inp = document.getElementById('aiSearchInput');
@@ -1070,6 +1093,7 @@ function openClaimModal(itemId) {
       else await Api.submitGuestClaim(payload);
       toast(isLost ? 'Recovery submitted — pending verification' : 'Claim submitted — pending verification');
       overlay.remove();
+      await loadAuthed();
       if (user && user.role === 'student') nav('my-claims');
       else nav(`item/${itemId}`);
     } catch (err) { toast(err.message); }

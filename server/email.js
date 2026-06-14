@@ -173,6 +173,32 @@ async function sendClaimReceivedNotification(claim, item) {
   });
 }
 
+async function sendClaimApprovedNotification(claim, item) {
+  const to = claim.claimant_email || '';
+  if (!to) return { ok: false, reason: 'no recipient' };
+  const isFound = item.type === 'found';
+  return sendEmail({
+    to,
+    subject: `Claim Approved — ${item.code}`,
+    text: [
+      `Hello ${claim.claimant_name || 'there'},`,
+      '',
+      isFound
+        ? 'Great news — your ownership claim has been approved.'
+        : 'Great news — your recovery claim has been approved.',
+      '',
+      `Item: ${item.name}`,
+      `Report ID: ${item.code}`,
+      '',
+      isFound
+        ? 'Visit the Lost & Found Office during office hours with valid ID to collect your item.'
+        : 'Your lost item report is now marked as recovered. Contact campus staff if you need pickup assistance.',
+      '',
+      '— iBALIK · PUP Parañaque Lost and Found',
+    ].join('\n'),
+  });
+}
+
 module.exports = {
   buildTrackUrl,
   isEmailConfigured,
@@ -181,4 +207,5 @@ module.exports = {
   sendMatchNotification,
   sendItemClaimedNotification,
   sendClaimReceivedNotification,
+  sendClaimApprovedNotification,
 };
