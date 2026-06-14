@@ -1,4 +1,5 @@
 const { categorizeFromText, extractColor } = require('./smartMatch');
+const { isGeminiEnabled, analyzeImageWithGemini } = require('./gemini');
 
 const DEMO_PHOTO_SIGNATURES = [
   { pattern: /1627123424574|photo-1627123424574/i, profile: 'wallet' },
@@ -145,7 +146,7 @@ function uploadFallback({ name, description, type, hintText, client_hints }) {
     tags: fromText.tags.length ? fromText.tags : ['campus', 'item', 'photo-upload'],
     description: description
       || (hasHints
-        ? `Reported campus ${type || 'lost'} item. Add OPENAI_API_KEY for richer AI descriptions.`
+        ? `Reported campus ${type || 'lost'} item. Add GEMINI_API_KEY for richer AI descriptions.`
         : 'Photo uploaded. Describe this item manually (name, color, unique marks) before submitting.'),
     confidence: conf,
     needs_manual_review: !hasHints,
@@ -184,6 +185,15 @@ function inferFromClientHints(hints) {
 async function analyzeImage({ photo_data, name, description, type, client_hints }) {
   const hint = `${name || ''} ${description || ''}`.trim();
   const isUpload = String(photo_data || '').startsWith('data:image');
+
+  if (isGeminiEnabled() && isUpload) {
+    try {
+      const parsed = await analyzeImageWithGemini(photo_data);
+      if (parsed) return formatAnalysis(parsed, 'gemini');
+    } catch (e) {
+      console.warn('[ai] Gemini vision failed:', e.message);
+    }
+  }
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (apiKey && isUpload) {
@@ -262,7 +272,7 @@ function formatAnalysis(raw, source) {
 
   return {
     source,
-    needs_manual_review: Boolean(raw.needs_manual_review) && source !== 'client-vision' && source !== 'openai',
+    needs_manual_review: Boolean(raw.needs_manual_review) && !['client-vision', 'openai', 'gemini'].includes(source),
     name: String(raw.name || 'Unknown Item').slice(0, 120),
     item_category: String(raw.category || raw.item_category || categorizeFromText(raw.description || raw.name || '')).slice(0, 80),
     color: String(raw.colors || raw.color || extractColor(`${raw.name} ${raw.description}`) || 'Unknown').slice(0, 60),

@@ -28,4 +28,4 @@ Optional: Python FastAPI backend in `backend/` (requires MySQL).
 
 ## Environment
 
-Copy `.env.example` to `.env` and set `JWT_SECRET`. Optional: `OPENAI_API_KEY` for AI report enrichment.
+Copy `.env.example` to `.env` and set `JWT_SECRET`. For AI photo analysis and report enrichment, add a free `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey). Optional paid fallback: `OPENAI_API_KEY`.

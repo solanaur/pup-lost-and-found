@@ -202,7 +202,7 @@ router.post('/', authOptional, async (req, res) => {
   }
   sendReportConfirmation(item).catch((err) => console.error('[email]', err.message));
   const response = itemToResponse(item, Boolean(submitted_by));
-  res.status(201).json(response);
+  res.status(201).json({ ...response, track: trackToResponse(item) });
 });
 
 router.patch('/:id/approve', requireAuth, requireRole('admin'), (req, res) => {

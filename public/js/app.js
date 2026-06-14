@@ -45,7 +45,7 @@ function parseRoute() {
     return { path: 'item', id: parts[1] };
   }
   if (parts[0] === 'track' && parts[1]) {
-    return { path: 'track', id: parts[1] };
+    return { path: 'track', id: decodeURIComponent(parts[1]) };
   }
   if (parts[0] === 'admin') {
     if (parts.length === 1) return { path: 'admin', id: undefined };
@@ -160,6 +160,49 @@ async function loadReportMatches() {
   }
 }
 
+async function reloadAfterMutation() {
+  await loadCore();
+  if (isAuthed()) await loadAuthed();
+}
+
+function toTrackView(item) {
+  if (!item) return null;
+  if (item.status_label) return item;
+  const status = item.status;
+  return {
+    ...item,
+    status_label: status === 'approved' ? 'Active' : status === 'pending' ? 'Pending Review' : status,
+  };
+}
+
+async function loadTrackReport(code) {
+  const key = String(code || '').trim();
+  if (!key) return null;
+
+  const cached = state.lastSubmittedReport;
+  if (cached && normalizeTrackCode(cached.code) === normalizeTrackCode(key)) {
+    state.lastSubmittedReport = null;
+    return toTrackView(cached.track || cached);
+  }
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const report = await Api.trackReport(key);
+      if (report) return report;
+    } catch (err) {
+      if (attempt === 3) console.warn('[track]', err.message);
+    }
+    if (attempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
+    }
+  }
+  return null;
+}
+
+function normalizeTrackCode(code) {
+  return String(code || '').trim().toUpperCase();
+}
+
 async function loadAuthed() {
   if (!isAuthed()) return;
   try {
@@ -234,11 +277,7 @@ async function render() {
   if (isAuthed()) await loadAuthed();
 
   if (path === 'track' && id) {
-    try {
-      state.trackReport = await Api.trackReport(id);
-    } catch (_) {
-      state.trackReport = null;
-    }
+    state.trackReport = await loadTrackReport(id);
   }
 
   if (path === 'admin/analytics') state.adminMoreTab = 'analytics';
@@ -494,8 +533,20 @@ function bindEvents() {
       }
       if (action === 'set-admin-claims-tab') { state.adminClaimsTab = el.dataset.tab; render(); return; }
       if (action === 'set-admin-more-tab') { state.adminMoreTab = el.dataset.tab; render(); return; }
-      if (action === 'admin-approve-item') { await Api.approveItem(el.dataset.id); toast('Report approved'); render(); return; }
-      if (action === 'admin-reject-item') { await Api.rejectItem(el.dataset.id); toast('Report rejected'); render(); return; }
+      if (action === 'admin-approve-item') {
+        await Api.approveItem(el.dataset.id);
+        toast('Report approved');
+        await reloadAfterMutation();
+        render();
+        return;
+      }
+      if (action === 'admin-reject-item') {
+        await Api.rejectItem(el.dataset.id);
+        toast('Report rejected');
+        await reloadAfterMutation();
+        render();
+        return;
+      }
       if (action === 'admin-delete-item') {
         const name = el.dataset.name || 'this item';
         if (!window.confirm(`Delete "${name}" permanently? This cannot be undone.`)) return;
@@ -504,6 +555,7 @@ function bindEvents() {
         if (Number(state.adminReportsSelectedId) === Number(el.dataset.id)) {
           state.adminReportsSelectedId = null;
         }
+        await reloadAfterMutation();
         if (parseRoute().path === 'item') nav('admin/reports');
         else render();
         return;
@@ -527,13 +579,16 @@ function bindEvents() {
           return;
         }
         await Api.approveClaim(cid, { checklist });
-        toast('Claim approved');
+        toast('Claim approved — item marked as claimed');
+        state.adminClaimsTab = 'claimed';
+        await reloadAfterMutation();
         render();
         return;
       }
       if (action === 'admin-reject-claim') {
         await Api.rejectClaim(el.dataset.id, 'Verification failed.');
         toast('Claim rejected');
+        await reloadAfterMutation();
         render();
         return;
       }
@@ -542,6 +597,16 @@ function bindEvents() {
       if (action === 'open-claim-modal') { openClaimModal(el.dataset.id); return; }
       if (action === 'claim-item') {
         openClaimModal(el.dataset.id);
+        return;
+      }
+      if (action === 'retry-track') {
+        const { id: trackId } = parseRoute();
+        if (trackId) {
+          state.trackReport = await loadTrackReport(trackId);
+          if (state.trackReport) toast('Report found');
+          else toast('Still not found — check the tracking ID from your email');
+        }
+        render();
         return;
       }
       if (action === 'copy-track-link') {
@@ -777,7 +842,7 @@ function bindEvents() {
           ai_confidence_score: state.wizard.ai_confidence_score,
         });
         state.wizard = { step: 1 };
-        state.lastSubmittedReport = created;
+        state.lastSubmittedReport = created.track || created;
         toast(type === 'found' ? 'Report submitted — pending admin review' : 'Lost report submitted — now active');
         nav(`track/${created.code}`);
       } catch (err) { toast(err.message); }
@@ -1087,6 +1152,8 @@ function openAdminClaimModal(itemId) {
       await Api.claimItemAdmin(itemId, payload);
       toast('Item marked as claimed');
       overlay.remove();
+      state.adminClaimsTab = 'claimed';
+      await reloadAfterMutation();
       render();
     } catch (err) { toast(err.message); }
   };

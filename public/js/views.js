@@ -862,8 +862,11 @@
     if (!r) {
       return shellWrap(`<div class="empty-state" style="padding:48px">
         <h2 style="color:var(--pup-maroon)">Report Not Found</h2>
-        <p class="muted">No report matches <code>${esc(id || '')}</code>. Check your email for the correct tracking link.</p>
-        <button type="button" class="btn btn-primary" data-action="nav" data-path="home" style="margin-top:16px">Back to Home</button>
+        <p class="muted">No report matches <code>${esc(id || '')}</code>. If you just submitted, wait a moment and try again.</p>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary" data-action="retry-track">Try Again</button>
+          <button type="button" class="btn btn-soft" data-action="nav" data-path="home">Back to Home</button>
+        </div>
       </div>`, 'browse');
     }
     const trackUrl = r.tracking_url || `${location.origin}${location.pathname}#/track/${encodeURIComponent(r.code)}`;

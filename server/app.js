@@ -22,23 +22,44 @@ function createApp(options = {}) {
   app.use(async (req, res, next) => {
     try {
       await hydrate();
-      if (useSupabase()) {
-        let flushed = false;
-        const save = () => {
-          if (flushed) return;
-          flushed = true;
-          flush()
-            .catch((err) => console.error('[db] flush failed:', err.message))
-            .finally(() => resetStore());
-        };
-        res.on('finish', save);
-        res.on('close', save);
-      }
-      next();
     } catch (err) {
       console.error('[db] hydrate failed:', err.message);
-      next(err);
+      return res.status(503).json({ error: 'Database unavailable. Please try again.' });
     }
+
+    if (!useSupabase()) return next();
+
+    let committed = false;
+    const commit = async () => {
+      if (committed) return;
+      committed = true;
+      await flush();
+      resetStore();
+    };
+
+    const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+    if (isMutation) {
+      const wrapSend = (sender) => async function sendWithCommit(...args) {
+        if (res.statusCode >= 200 && res.statusCode < 400) {
+          try {
+            await commit();
+          } catch (err) {
+            console.error('[db] flush failed:', err.message);
+            if (!res.headersSent) {
+              return res.status(500).json({ error: 'Failed to save data. Please try again.' });
+            }
+            return undefined;
+          }
+        }
+        return sender.apply(res, args);
+      };
+      res.json = wrapSend(res.json.bind(res));
+      res.send = wrapSend(res.send.bind(res));
+    } else {
+      res.on('finish', () => { resetStore(); });
+    }
+
+    next();
   });
 
   app.use('/api/auth', authRoutes);

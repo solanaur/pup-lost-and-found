@@ -514,10 +514,27 @@ function getItem(id) {
   return mem.items.find((i) => i.id === id) || null;
 }
 
+function normalizeTrackCode(code) {
+  return String(code || '').trim().toUpperCase();
+}
+
 function getItemByCode(code) {
   const key = String(code || '').trim();
   if (!key) return null;
-  return mem.items.find((i) => i.code === key || i.tracking_token === key) || null;
+  const upper = normalizeTrackCode(key);
+  const direct = mem.items.find(
+    (i) => i.code === key
+      || i.tracking_token === key
+      || normalizeTrackCode(i.code) === upper
+      || i.tracking_token === key.toLowerCase()
+  );
+  if (direct) return direct;
+  const legacy = upper.match(/^PUPLF-(\d+)$/);
+  if (legacy) {
+    const num = Number(legacy[1]);
+    return mem.items.find((i) => i.id === num) || null;
+  }
+  return null;
 }
 
 function generateReportCode(type, id) {
@@ -665,6 +682,15 @@ function markItemClaimedWithClaimer(itemId, row, actorId) {
     status: 'approved',
   });
   item.status = 'claimed';
+  mem.claims
+    .filter((c) => c.item_id === itemId && c.id !== claim.id && c.status === 'pending')
+    .forEach((other) => {
+      other.status = 'rejected';
+      other.admin_feedback = 'Item was marked as claimed by campus staff.';
+      if (other.user_id) {
+        addNotification(other.user_id, 'Claim rejected', `Your claim for ${item.name} was not approved.`);
+      }
+    });
   if (item.submitted_by) {
     addNotification(item.submitted_by, 'Item marked claimed', `Report ${item.code} is now marked as claimed.`);
   }

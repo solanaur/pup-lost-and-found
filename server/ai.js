@@ -1,7 +1,32 @@
 /**
- * Optional OpenAI-compatible JSON suggestion. Falls back to keyword heuristics.
+ * Optional Gemini / OpenAI JSON suggestion. Falls back to keyword heuristics.
  */
+const { isGeminiEnabled, enrichReportWithGemini } = require('./gemini');
+
+function pickEmoji(e) {
+  if (!e || typeof e !== 'string') return '';
+  const g = e.match(/\p{Extended_Pictographic}/u);
+  return g ? g[0] : '';
+}
+
 async function enrichReport({ type, draftName, draftLoc, draftDesc }) {
+  if (isGeminiEnabled()) {
+    try {
+      const parsed = await enrichReportWithGemini({ type, draftName, draftLoc, draftDesc });
+      if (parsed) {
+        return {
+          source: 'gemini',
+          name: String(parsed.name).slice(0, 120),
+          loc: String(parsed.loc).slice(0, 200),
+          description: String(parsed.description || '').slice(0, 500),
+          emoji: pickEmoji(parsed.emoji) || heuristicEmoji(draftName, draftDesc),
+        };
+      }
+    } catch (e) {
+      console.warn('[ai] Gemini enrich failed, trying fallback:', e.message);
+    }
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
   const base = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
@@ -72,12 +97,6 @@ function safeJson(s) {
   } catch {
     return null;
   }
-}
-
-function pickEmoji(e) {
-  if (!e || typeof e !== 'string') return '';
-  const g = e.match(/\p{Extended_Pictographic}/u);
-  return g ? g[0] : '';
 }
 
 function localEnrich(type, name, loc, desc) {
