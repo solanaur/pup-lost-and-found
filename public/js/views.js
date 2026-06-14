@@ -531,34 +531,26 @@
     const a = analysis;
     const tags = (a.ai_tags || []).map((t) => `<span class="ai-tag">${esc(t)}</span>`).join('');
     const conf = a.confidence || {};
-    const reviewNote = a.source === 'client-vision'
-      ? `<div class="report-ai-hint report-ai-hint-info" style="margin:0;border-radius:0">${icon('scan-eye', 16)} Local photo analysis detected colors and shape from your upload. Add <code>OPENAI_API_KEY</code> to .env for richer descriptions.</div>`
-      : a.needs_manual_review || a.source === 'upload-fallback'
-        ? `<div class="report-ai-hint" style="margin:0;border-radius:0">${icon('alert-circle', 16)} Could not analyze this photo — describe the item manually or add <code>OPENAI_API_KEY</code> for AI vision.</div>`
-        : a.source === 'openai'
-          ? ''
-          : `<div class="report-ai-hint report-ai-hint-info" style="margin:0;border-radius:0">${icon('info', 16)} Analysis based on ${esc(a.source || 'heuristics')}. Verify before submitting.</div>`;
+    const fact = (label, value) => `<div class="ai-fact-row"><span class="ai-fact-label">${label}</span><strong class="ai-fact-value">${esc(value || 'Unknown')}</strong></div>`;
     return `<div class="ai-analysis-card">
-      ${reviewNote}
       <div class="ai-analysis-head">
-        <span>${icon('sparkles', 18)} AI Analysis Results</span>
+        <span class="ai-analysis-title">${icon('sparkles', 18)} AI Analysis Results</span>
         <span class="ai-conf-badge">AI Confidence ${a.ai_confidence_score || 85}%</span>
       </div>
-      <div class="ai-analysis-grid">
-        <div>
-          <p><strong>Detected Item</strong><br>${esc(a.name)}</p>
-          <p><strong>Category</strong><br>${esc(a.item_category || a.ai_detected_category)}</p>
-          <p><strong>Colors</strong><br>${esc(a.color || a.ai_detected_colors)}</p>
-          <p><strong>Material</strong><br>${esc(a.material || 'Unknown')}</p>
-          <p><strong>Brand</strong><br>${esc(a.brand || 'Unknown')}</p>
+      <div class="ai-analysis-body">
+        <div class="ai-analysis-facts">
+          ${fact('Detected Item', a.name)}
+          ${fact('Category', a.item_category || a.ai_detected_category)}
+          ${fact('Colors', a.color || a.ai_detected_colors)}
+          ${fact('Material', a.material)}
+          ${fact('Brand', a.brand)}
         </div>
-        <div>
-          <p><strong>Description</strong></p>
-          <p class="muted" style="font-size:13px;line-height:1.6">${esc(a.ai_description || a.description)}</p>
-          <p style="margin-top:12px"><strong>Tags</strong></p>
-          <div class="ai-tags">${tags}</div>
+        <div class="ai-analysis-desc">
+          <span class="ai-fact-label">Description</span>
+          <p class="ai-desc-text">${esc(a.ai_description || a.description)}</p>
+          ${tags ? `<span class="ai-fact-label">Tags</span><div class="ai-tags">${tags}</div>` : ''}
         </div>
-        <div>
+        <div class="ai-analysis-confidence">
           ${aiProgressBar('Item Detection', conf.item_detection || 90)}
           ${aiProgressBar('Category Detection', conf.category_detection || 88)}
           ${aiProgressBar('Color Detection', conf.color_detection || 85)}
@@ -913,7 +905,7 @@
         <div class="report-ai-fields">
           <div class="field"><label>Item Name ${icon('sparkles', 14)}</label><input name="name" value="${esc(w.name || '')}" required placeholder="e.g. Black Leather Wallet"></div>
           <div class="field"><label>Category</label><select name="item_category">${categoriesPlaceholder(w)}</select></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="report-field-row report-field-row-2">
             <div class="field"><label>Color</label><input name="color" value="${esc(w.color || '')}" placeholder="Black, Brown"></div>
             <div class="field"><label>Brand (if applicable)</label><input name="brand" value="${esc(w.brand || 'Unknown')}"></div>
           </div>
@@ -932,17 +924,17 @@
     const buildingOpts = buildings.map((b) => `<option ${w.building === b ? 'selected' : ''}>${esc(b)}</option>`).join('');
     return `
       <div class="field"><label>${isFound ? 'Exact Location Found' : 'Last Known Location'}</label><input name="loc" value="${esc(w.loc || '')}" required placeholder="${isFound ? 'e.g. Canteen entrance, New Building' : 'e.g. Engineering Building, Room 301'}"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="report-field-row report-field-row-3">
         <div class="field"><label>Building</label><select name="building">${buildingOpts}</select></div>
         <div class="field"><label>Floor</label><input name="floor" value="${esc(w.floor || '')}"></div>
         <div class="field"><label>Room / Area</label><input name="room" value="${esc(w.room || '')}"></div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="report-field-row report-field-row-2">
         <div class="field"><label>${isFound ? 'Date Found' : 'Date Lost'}</label><input name="date_lost" type="date" value="${esc(w.date_lost || '')}"></div>
         <div class="field"><label>Time</label><input name="time_lost" type="time" value="${esc(w.time_lost || '')}"></div>
       </div>
       ${isFound ? `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="report-field-row report-field-row-2">
           <div class="field"><label>Condition</label><select name="condition"><option${w.condition === 'Good' || !w.condition ? ' selected' : ''}>Good</option><option${w.condition === 'Fair' ? ' selected' : ''}>Fair</option><option${w.condition === 'Needs repair' ? ' selected' : ''}>Needs repair</option></select></div>
           <div class="field"><label>Stored At</label><input name="holder" placeholder="Campus Security" value="${esc(w.holder || 'Campus Security')}"></div>
         </div>
