@@ -665,6 +665,17 @@ function createClaim(row) {
   return claim;
 }
 
+function notifyFoundReporterReunited(item) {
+  if (!item || item.type !== 'found') return;
+  if (item.submitted_by) {
+    addNotification(
+      item.submitted_by,
+      'Item reunited with owner',
+      `Thanks for reporting ${item.name} — it has been returned to its owner.`
+    );
+  }
+}
+
 async function markItemClaimedWithClaimer(itemId, row, actorId) {
   const item = getItem(itemId);
   if (!item || item.status !== 'approved') return null;
@@ -692,7 +703,11 @@ async function markItemClaimedWithClaimer(itemId, row, actorId) {
       }
     });
   if (item.submitted_by) {
-    addNotification(item.submitted_by, 'Item marked claimed', `Report ${item.code} is now marked as claimed.`);
+    if (item.type === 'found') {
+      notifyFoundReporterReunited(item);
+    } else {
+      addNotification(item.submitted_by, 'Item marked claimed', `Report ${item.code} is now marked as claimed.`);
+    }
   }
   const { notifyClaimOutcome } = require('./email');
   try {
@@ -760,6 +775,7 @@ async function updateClaimStatus(id, fromStatuses, toStatus, feedback, actorId, 
     if (claim.user_id) {
       addNotification(claim.user_id, 'Claim approved', `Your claim for ${item.name} was approved. Visit campus security to collect.`);
     }
+    notifyFoundReporterReunited(item);
     const { notifyClaimOutcome } = require('./email');
     try {
       await notifyClaimOutcome(claim, item);

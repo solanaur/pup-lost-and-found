@@ -109,29 +109,38 @@ async function sendMatchNotification(item, match, foundItem) {
   });
 }
 
-async function sendItemClaimedNotification(item) {
+async function sendFoundItemReunitedNotification(item) {
   if (!item.reporter_email) return { ok: false, reason: 'no recipient' };
+  if (item.type !== 'found') return { ok: false, reason: 'not a found report' };
   const trackUrl = buildTrackUrl(item.code);
-  const isFound = item.type === 'found';
-  const subject = isFound
-    ? `Found Item Returned — ${item.code}`
-    : `Lost Item Claimed — ${item.code}`;
-  const body = isFound
-    ? [
+  return sendEmail({
+    to: item.reporter_email,
+    subject: `Item Reunited With Owner — ${item.code}`,
+    text: [
       `Hello ${item.reporter_name || 'there'},`,
       '',
-      'The found item you reported has been marked as claimed and returned to its owner.',
+      'Good news — the item you found has been reunited with its owner.',
       '',
       `Item: ${item.name}`,
       `Report ID: ${item.code}`,
       '',
-      'Thank you for helping reunite a campus community member with their belongings.',
+      'Thank you for turning it in and helping a fellow student get their belongings back.',
       '',
       `Track report: ${trackUrl}`,
       '',
       '— iBALIK · PUP Parañaque Lost and Found',
-    ]
-    : [
+    ].join('\n'),
+  });
+}
+
+async function sendItemClaimedNotification(item) {
+  if (!item.reporter_email) return { ok: false, reason: 'no recipient' };
+  if (item.type === 'found') return sendFoundItemReunitedNotification(item);
+  const trackUrl = buildTrackUrl(item.code);
+  return sendEmail({
+    to: item.reporter_email,
+    subject: `Lost Item Claimed — ${item.code}`,
+    text: [
       `Hello ${item.reporter_name || 'there'},`,
       '',
       'Great news — your lost item report has been marked as claimed.',
@@ -144,11 +153,7 @@ async function sendItemClaimedNotification(item) {
       `Track report: ${trackUrl}`,
       '',
       '— iBALIK · PUP Parañaque Lost and Found',
-    ];
-  return sendEmail({
-    to: item.reporter_email,
-    subject,
-    text: body.join('\n'),
+    ].join('\n'),
   });
 }
 
@@ -210,7 +215,11 @@ async function notifyClaimOutcome(claim, item) {
   }
   if (item.reporter_email) {
     try {
-      results.push(await sendItemClaimedNotification(item));
+      if (item.type === 'found') {
+        results.push(await sendFoundItemReunitedNotification(item));
+      } else {
+        results.push(await sendItemClaimedNotification(item));
+      }
     } catch (e) {
       console.warn('[email] claim approved notify reporter:', e.message);
       results.push({ ok: false, error: e.message });
@@ -225,6 +234,7 @@ module.exports = {
   sendEmail,
   sendReportConfirmation,
   sendMatchNotification,
+  sendFoundItemReunitedNotification,
   sendItemClaimedNotification,
   sendClaimReceivedNotification,
   sendClaimApprovedNotification,
