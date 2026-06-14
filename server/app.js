@@ -11,6 +11,7 @@ const matchesRoutes = require('./routes/matches');
 const { listAdminMatches, matchToResponse, updateMatchStatus, hydrate, flush, resetStore } = require('./db');
 const { requireAuth, requireRole } = require('./auth');
 const { useSupabase } = require('./supabase');
+const { isEmailConfigured } = require('./email');
 
 function createApp(options = {}) {
   const { serveStatic = true } = options;
@@ -70,7 +71,12 @@ function createApp(options = {}) {
   app.use('/api/matches', matchesRoutes);
 
   app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, service: 'ibalik', storage: useSupabase() ? 'supabase' : 'file' });
+    res.json({
+      ok: true,
+      service: 'ibalik',
+      storage: useSupabase() ? 'supabase' : 'file',
+      email: isEmailConfigured() ? 'smtp' : 'off',
+    });
   });
 
   app.get('/api/admin/matches', requireAuth, requireRole('admin'), (_req, res) => {

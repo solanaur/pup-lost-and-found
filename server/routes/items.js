@@ -20,7 +20,7 @@ const {
 const { authOptional, requireAuth, requireRole } = require('../auth');
 const { categorizeFromText, extractColor } = require('../smartMatch');
 const { analyzeImage } = require('../imageAnalysis');
-const { sendReportConfirmation, sendItemClaimedNotification } = require('../email');
+const { sendReportConfirmation, isEmailConfigured } = require('../email');
 
 const router = express.Router();
 
@@ -200,9 +200,20 @@ router.post('/', authOptional, async (req, res) => {
   if (type === 'lost') {
     runMatchingForReport(item.id, { notify: true, notifyThreshold: 85 });
   }
-  sendReportConfirmation(item).catch((err) => console.error('[email]', err.message));
+  let emailSent = false;
+  try {
+    const emailResult = await sendReportConfirmation(item);
+    emailSent = Boolean(emailResult?.sent);
+  } catch (err) {
+    console.error('[email] report confirmation failed:', err.message);
+  }
   const response = itemToResponse(item, Boolean(submitted_by));
-  res.status(201).json({ ...response, track: trackToResponse(item) });
+  res.status(201).json({
+    ...response,
+    track: trackToResponse(item),
+    email_sent: emailSent,
+    email_configured: isEmailConfigured(),
+  });
 });
 
 router.patch('/:id/approve', requireAuth, requireRole('admin'), (req, res) => {
@@ -240,7 +251,7 @@ router.patch('/:id/claim', requireAuth, requireRole('admin'), async (req, res) =
   if (!item) return res.status(404).json({ error: 'Not found' });
   const claimant = parseClaimantFields(req.body || {});
   if (claimant.error) return res.status(400).json({ error: claimant.error });
-  const claim = markItemClaimedWithClaimer(id, {
+  const claim = await markItemClaimedWithClaimer(id, {
     ...claimant,
     description: String(req.body?.description || '').trim() || 'Claim recorded by administrator.',
     proof_data: req.body?.proof_data || '',
@@ -248,11 +259,6 @@ router.patch('/:id/claim', requireAuth, requireRole('admin'), async (req, res) =
   }, req.user.sub);
   if (!claim) {
     return res.status(404).json({ error: 'Not found or not approved' });
-  }
-  try {
-    await sendItemClaimedNotification(item);
-  } catch (e) {
-    console.warn('[email] item claimed notify:', e.message);
   }
   res.json({ ok: true, claim: claimToResponse(claim, true) });
 });

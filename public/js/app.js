@@ -842,7 +842,11 @@ function bindEvents() {
           ai_confidence_score: state.wizard.ai_confidence_score,
         });
         state.wizard = { step: 1 };
-        state.lastSubmittedReport = created.track || created;
+        state.lastSubmittedReport = {
+          ...(created.track || created),
+          email_sent: created.email_sent,
+          email_configured: created.email_configured,
+        };
         toast(type === 'found' ? 'Report submitted — pending admin review' : 'Lost report submitted — now active');
         nav(`track/${created.code}`);
       } catch (err) { toast(err.message); }

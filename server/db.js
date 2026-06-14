@@ -665,7 +665,7 @@ function createClaim(row) {
   return claim;
 }
 
-function markItemClaimedWithClaimer(itemId, row, actorId) {
+async function markItemClaimedWithClaimer(itemId, row, actorId) {
   const item = getItem(itemId);
   if (!item || item.status !== 'approved') return null;
   const claim = createClaim({
@@ -694,10 +694,11 @@ function markItemClaimedWithClaimer(itemId, row, actorId) {
   if (item.submitted_by) {
     addNotification(item.submitted_by, 'Item marked claimed', `Report ${item.code} is now marked as claimed.`);
   }
-  const { sendClaimApprovedNotification, sendItemClaimedNotification } = require('./email');
-  sendClaimApprovedNotification(claim, item).catch((e) => console.warn('[email] admin mark claimed notify:', e.message));
-  if (item.reporter_email) {
-    sendItemClaimedNotification(item).catch((e) => console.warn('[email] admin mark claimed reporter:', e.message));
+  const { notifyClaimOutcome } = require('./email');
+  try {
+    await notifyClaimOutcome(claim, item);
+  } catch (e) {
+    console.warn('[email] admin mark claimed notify:', e.message);
   }
   addLog('item_claimed', 'item', itemId, item.code || item.name, actorId);
   persist();
@@ -759,14 +760,11 @@ async function updateClaimStatus(id, fromStatuses, toStatus, feedback, actorId, 
     if (claim.user_id) {
       addNotification(claim.user_id, 'Claim approved', `Your claim for ${item.name} was approved. Visit campus security to collect.`);
     }
-    const { sendClaimApprovedNotification, sendItemClaimedNotification } = require('./email');
+    const { notifyClaimOutcome } = require('./email');
     try {
-      await sendClaimApprovedNotification(claim, item);
+      await notifyClaimOutcome(claim, item);
     } catch (e) {
-      console.warn('[email] claim approved notify claimant:', e.message);
-    }
-    if (item.reporter_email) {
-      sendItemClaimedNotification(item).catch((e) => console.warn('[email] claim approved notify reporter:', e.message));
+      console.warn('[email] claim approved notify:', e.message);
     }
   } else if (toStatus === 'rejected') {
     if (claim.user_id) {

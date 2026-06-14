@@ -893,7 +893,13 @@
           <button type="button" class="btn btn-soft btn-sm" data-action="copy-track-link" data-url="${esc(trackUrl)}">${icon('link', 16)} Copy Tracking Link</button>
           ${r.type === 'found' && r.status === 'approved' ? `<button type="button" class="btn btn-primary btn-sm" data-action="nav" data-path="browse">${icon('search', 16)} Browse Items</button>` : ''}
         </div>
-        <p class="track-email-note">${icon('mail', 16)} A confirmation was sent to ${esc(r.reporter_name || 'your email')}. Save this link to check status anytime.</p>
+        <p class="track-email-note">${icon('mail', 16)} ${
+  r.email_sent
+    ? `A confirmation was sent to ${esc(r.reporter_email || r.reporter_name || 'your email')}.`
+    : r.email_configured === false
+      ? 'Email is not configured on the server — save your tracking link below.'
+      : `Save your tracking link below to check status anytime${r.reporter_email ? ` (${esc(r.reporter_email)})` : ''}.`
+}</p>
       </div>
     </div>`;
     return shellWrap(body, 'browse');

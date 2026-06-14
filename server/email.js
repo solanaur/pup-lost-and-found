@@ -199,6 +199,26 @@ async function sendClaimApprovedNotification(claim, item) {
   });
 }
 
+/** Claim approved: notify claimer + original reporter (found returned / lost recovered). */
+async function notifyClaimOutcome(claim, item) {
+  const results = [];
+  try {
+    results.push(await sendClaimApprovedNotification(claim, item));
+  } catch (e) {
+    console.warn('[email] claim approved notify claimant:', e.message);
+    results.push({ ok: false, error: e.message });
+  }
+  if (item.reporter_email) {
+    try {
+      results.push(await sendItemClaimedNotification(item));
+    } catch (e) {
+      console.warn('[email] claim approved notify reporter:', e.message);
+      results.push({ ok: false, error: e.message });
+    }
+  }
+  return results;
+}
+
 module.exports = {
   buildTrackUrl,
   isEmailConfigured,
@@ -208,4 +228,5 @@ module.exports = {
   sendItemClaimedNotification,
   sendClaimReceivedNotification,
   sendClaimApprovedNotification,
+  notifyClaimOutcome,
 };
