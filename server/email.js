@@ -1,7 +1,6 @@
 /**
- * Email via Gmail SMTP when SMTP_PASS is set; otherwise logs to console.
+ * Email via Gmail SMTP when SMTP_PASS is set.
  */
-
 const nodemailer = require('nodemailer');
 
 const DEFAULT_FROM = 'iBALIK <pupibaliklostandfound@gmail.com>';
@@ -10,6 +9,14 @@ let transporter = null;
 
 function isEmailConfigured() {
   return Boolean(process.env.SMTP_PASS);
+}
+
+function getPublicBaseUrl() {
+  const configured = String(process.env.PUBLIC_BASE_URL || '').trim().replace(/\/$/, '');
+  const netlify = String(process.env.URL || process.env.DEPLOY_PRIME_URL || '').trim().replace(/\/$/, '');
+  if (configured && !/localhost|127\.0\.0\.1/i.test(configured)) return configured;
+  if (netlify) return netlify;
+  return configured || 'http://localhost:3000';
 }
 
 function getTransporter() {
@@ -29,9 +36,19 @@ function getTransporter() {
   return transporter;
 }
 
+async function verifySmtpConnection() {
+  if (!isEmailConfigured()) return { ok: false, reason: 'SMTP_PASS not set' };
+  try {
+    const tx = getTransporter();
+    await tx.verify();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: e.message };
+  }
+}
+
 function buildTrackUrl(code) {
-  const base = process.env.PUBLIC_BASE_URL || 'http://localhost:3000';
-  return `${base}/#/track/${encodeURIComponent(code)}`;
+  return `${getPublicBaseUrl()}/#/track/${encodeURIComponent(code)}`;
 }
 
 function textToHtml(text) {
@@ -41,25 +58,51 @@ function textToHtml(text) {
     .join('\n');
 }
 
+function emailWasSent(result) {
+  return Boolean(result?.sent);
+}
+
+function summarizeEmailResults(results) {
+  const list = Array.isArray(results) ? results : [results];
+  const sent = list.filter((r) => r?.sent).length;
+  const failed = list.filter((r) => r && !r.sent && !r.logged).length;
+  return {
+    email_sent: sent > 0,
+    email_count: sent,
+    email_failed: failed,
+    email_error: list.find((r) => r?.error || r?.reason)?.error
+      || list.find((r) => r?.reason)?.reason
+      || null,
+  };
+}
+
 async function sendEmail({ to, subject, text, html }) {
-  if (!to) return { ok: false, reason: 'no recipient' };
+  const recipient = String(to || '').trim();
+  if (!recipient) {
+    console.warn('[email skip] no recipient for', subject);
+    return { ok: false, reason: 'no recipient' };
+  }
 
   const tx = getTransporter();
   if (!tx) {
-    console.log('[email stub]', JSON.stringify({ to, subject, at: new Date().toISOString() }));
-    return { ok: true, logged: true };
+    console.log('[email stub]', JSON.stringify({ to: recipient, subject, at: new Date().toISOString() }));
+    return { ok: false, logged: true, reason: 'smtp not configured' };
   }
 
-  const info = await tx.sendMail({
-    from: process.env.EMAIL_FROM || DEFAULT_FROM,
-    to,
-    subject,
-    text,
-    html: html || textToHtml(text),
-  });
-
-  console.log('[email sent]', { to, subject, messageId: info.messageId });
-  return { ok: true, sent: true, messageId: info.messageId };
+  try {
+    const info = await tx.sendMail({
+      from: process.env.EMAIL_FROM || DEFAULT_FROM,
+      to: recipient,
+      subject,
+      text,
+      html: html || textToHtml(text),
+    });
+    console.log('[email sent]', { to: recipient, subject, messageId: info.messageId });
+    return { ok: true, sent: true, messageId: info.messageId, to: recipient };
+  } catch (e) {
+    console.error('[email failed]', { to: recipient, subject, error: e.message });
+    return { ok: false, error: e.message, to: recipient };
+  }
 }
 
 async function sendReportConfirmation(item) {
@@ -133,22 +176,22 @@ async function sendFoundItemReunitedNotification(item) {
   });
 }
 
-async function sendItemClaimedNotification(item) {
+async function sendLostItemRecoveredNotification(item) {
   if (!item.reporter_email) return { ok: false, reason: 'no recipient' };
-  if (item.type === 'found') return sendFoundItemReunitedNotification(item);
+  if (item.type !== 'lost') return { ok: false, reason: 'not a lost report' };
   const trackUrl = buildTrackUrl(item.code);
   return sendEmail({
     to: item.reporter_email,
-    subject: `Lost Item Claimed — ${item.code}`,
+    subject: `Lost Item Recovered — ${item.code}`,
     text: [
       `Hello ${item.reporter_name || 'there'},`,
       '',
-      'Great news — your lost item report has been marked as claimed.',
+      'Great news — your lost item has been marked as recovered and claimed.',
       '',
       `Item: ${item.name}`,
       `Report ID: ${item.code}`,
       '',
-      'If you have not picked up the item yet, visit the Lost & Found Office during office hours with valid ID.',
+      'If you have not picked it up yet, visit the Lost & Found Office during office hours with valid ID.',
       '',
       `Track report: ${trackUrl}`,
       '',
@@ -157,11 +200,15 @@ async function sendItemClaimedNotification(item) {
   });
 }
 
+async function sendItemClaimedNotification(item) {
+  if (!item.reporter_email) return { ok: false, reason: 'no recipient' };
+  if (item.type === 'found') return sendFoundItemReunitedNotification(item);
+  return sendLostItemRecoveredNotification(item);
+}
+
 async function sendClaimReceivedNotification(claim, item) {
-  const to = claim.claimant_email || '';
-  if (!to) return { ok: false, reason: 'no recipient' };
   return sendEmail({
-    to,
+    to: claim.claimant_email,
     subject: `Claim Submitted — ${item.code}`,
     text: [
       `Hello ${claim.claimant_name || 'there'},`,
@@ -179,11 +226,9 @@ async function sendClaimReceivedNotification(claim, item) {
 }
 
 async function sendClaimApprovedNotification(claim, item) {
-  const to = claim.claimant_email || '';
-  if (!to) return { ok: false, reason: 'no recipient' };
   const isFound = item.type === 'found';
   return sendEmail({
-    to,
+    to: claim.claimant_email,
     subject: `Claim Approved — ${item.code}`,
     text: [
       `Hello ${claim.claimant_name || 'there'},`,
@@ -204,37 +249,37 @@ async function sendClaimApprovedNotification(claim, item) {
   });
 }
 
-/** Claim approved: notify claimer + original reporter (found returned / lost recovered). */
+/** Claim approved: notify claimer + original reporter when different people. */
 async function notifyClaimOutcome(claim, item) {
+  const claimTo = String(claim.claimant_email || '').trim().toLowerCase();
+  const reporterTo = String(item.reporter_email || '').trim().toLowerCase();
   const results = [];
-  try {
-    results.push(await sendClaimApprovedNotification(claim, item));
-  } catch (e) {
-    console.warn('[email] claim approved notify claimant:', e.message);
-    results.push({ ok: false, error: e.message });
-  }
-  if (item.reporter_email) {
-    try {
-      if (item.type === 'found') {
-        results.push(await sendFoundItemReunitedNotification(item));
-      } else {
-        results.push(await sendItemClaimedNotification(item));
-      }
-    } catch (e) {
-      console.warn('[email] claim approved notify reporter:', e.message);
-      results.push({ ok: false, error: e.message });
+
+  results.push(await sendClaimApprovedNotification(claim, item));
+
+  if (reporterTo && reporterTo !== claimTo) {
+    if (item.type === 'found') {
+      results.push(await sendFoundItemReunitedNotification(item));
+    } else {
+      results.push(await sendLostItemRecoveredNotification(item));
     }
   }
+
   return results;
 }
 
 module.exports = {
   buildTrackUrl,
+  getPublicBaseUrl,
   isEmailConfigured,
+  verifySmtpConnection,
+  emailWasSent,
+  summarizeEmailResults,
   sendEmail,
   sendReportConfirmation,
   sendMatchNotification,
   sendFoundItemReunitedNotification,
+  sendLostItemRecoveredNotification,
   sendItemClaimedNotification,
   sendClaimReceivedNotification,
   sendClaimApprovedNotification,

@@ -10,7 +10,7 @@ const {
   parseClaimantFields,
 } = db;
 const { requireAuth, requireRole } = require('../auth');
-const { sendClaimReceivedNotification } = require('../email');
+const { sendClaimReceivedNotification, isEmailConfigured, emailWasSent, summarizeEmailResults } = require('../email');
 
 const router = express.Router();
 
@@ -66,12 +66,19 @@ router.post('/guest', async (req, res) => {
   db.mem.users
     .filter((u) => u.role === 'admin')
     .forEach((a) => addNotification(a.id, 'New claim request', `${item.name} — ${claimant.claimant_name} (guest)`));
+  let emailMeta = { email_sent: false, email_configured: isEmailConfigured(), email_error: null };
   try {
-    await sendClaimReceivedNotification(claim, item);
+    const emailResult = await sendClaimReceivedNotification(claim, item);
+    emailMeta = {
+      email_sent: emailWasSent(emailResult),
+      email_configured: isEmailConfigured(),
+      email_error: emailResult?.error || emailResult?.reason || null,
+    };
   } catch (e) {
+    emailMeta.email_error = e.message;
     console.warn('[email] guest claim confirm:', e.message);
   }
-  res.status(201).json(claimToResponse(claim, false));
+  res.status(201).json({ ...claimToResponse(claim, false), ...emailMeta });
 });
 
 router.post('/', requireAuth, requireRole('student'), async (req, res) => {
@@ -103,12 +110,19 @@ router.post('/', requireAuth, requireRole('student'), async (req, res) => {
   db.mem.users
     .filter((a) => a.role === 'admin')
     .forEach((a) => addNotification(a.id, 'New claim request', `${item.name} — review required.`));
+  let emailMeta = { email_sent: false, email_configured: isEmailConfigured(), email_error: null };
   try {
-    await sendClaimReceivedNotification(claim, item);
+    const emailResult = await sendClaimReceivedNotification(claim, item);
+    emailMeta = {
+      email_sent: emailWasSent(emailResult),
+      email_configured: isEmailConfigured(),
+      email_error: emailResult?.error || emailResult?.reason || null,
+    };
   } catch (e) {
+    emailMeta.email_error = e.message;
     console.warn('[email] student claim confirm:', e.message);
   }
-  res.status(201).json(claimToResponse(claim, false));
+  res.status(201).json({ ...claimToResponse(claim, false), ...emailMeta });
 });
 
 router.patch('/:id/approve', requireAuth, requireRole('admin'), async (req, res) => {
@@ -119,7 +133,13 @@ router.patch('/:id/approve', requireAuth, requireRole('admin'), async (req, res)
     return res.status(404).json({ error: 'Claim not found or not pending' });
   }
   const claim = db.mem.claims.find((c) => c.id === id);
-  res.json({ ok: true, claim: claim ? claimToResponse(claim, true) : null });
+  const emailMeta = claim?._emailMeta || {};
+  if (claim) delete claim._emailMeta;
+  res.json({
+    ok: true,
+    claim: claim ? claimToResponse(claim, true) : null,
+    ...emailMeta,
+  });
 });
 
 router.patch('/:id/reject', requireAuth, requireRole('admin'), async (req, res) => {

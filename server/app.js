@@ -11,7 +11,7 @@ const matchesRoutes = require('./routes/matches');
 const { listAdminMatches, matchToResponse, updateMatchStatus, hydrate, flush, resetStore } = require('./db');
 const { requireAuth, requireRole } = require('./auth');
 const { useSupabase } = require('./supabase');
-const { isEmailConfigured } = require('./email');
+const { isEmailConfigured, verifySmtpConnection, getPublicBaseUrl } = require('./email');
 
 function createApp(options = {}) {
   const { serveStatic = true } = options;
@@ -70,12 +70,15 @@ function createApp(options = {}) {
   app.use('/api/ai', aiRoutes);
   app.use('/api/matches', matchesRoutes);
 
-  app.get('/api/health', (_req, res) => {
+  app.get('/api/health', async (_req, res) => {
+    const smtp = isEmailConfigured() ? await verifySmtpConnection() : { ok: false, reason: 'SMTP_PASS not set' };
     res.json({
       ok: true,
       service: 'ibalik',
       storage: useSupabase() ? 'supabase' : 'file',
-      email: isEmailConfigured() ? 'smtp' : 'off',
+      email: smtp.ok ? 'smtp' : 'off',
+      email_error: smtp.ok ? null : smtp.reason,
+      public_base_url: getPublicBaseUrl(),
     });
   });
 

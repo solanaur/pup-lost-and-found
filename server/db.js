@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const { notifyClaimOutcome, summarizeEmailResults } = require('./email');
 
 const dataDir = path.join(__dirname, '..', 'data');
 const storePath = path.join(dataDir, 'store.json');
@@ -709,15 +710,17 @@ async function markItemClaimedWithClaimer(itemId, row, actorId) {
       addNotification(item.submitted_by, 'Item marked claimed', `Report ${item.code} is now marked as claimed.`);
     }
   }
-  const { notifyClaimOutcome } = require('./email');
+  let emailMeta = null;
   try {
-    await notifyClaimOutcome(claim, item);
+    const results = await notifyClaimOutcome(claim, item);
+    emailMeta = summarizeEmailResults(results);
   } catch (e) {
     console.warn('[email] admin mark claimed notify:', e.message);
+    emailMeta = { email_sent: false, email_error: e.message };
   }
   addLog('item_claimed', 'item', itemId, item.code || item.name, actorId);
   persist();
-  return claim;
+  return { claim, emailMeta };
 }
 
 function listClaims(filterFn) {
@@ -776,11 +779,14 @@ async function updateClaimStatus(id, fromStatuses, toStatus, feedback, actorId, 
       addNotification(claim.user_id, 'Claim approved', `Your claim for ${item.name} was approved. Visit campus security to collect.`);
     }
     notifyFoundReporterReunited(item);
-    const { notifyClaimOutcome } = require('./email');
+    let emailMeta = null;
     try {
-      await notifyClaimOutcome(claim, item);
+      const results = await notifyClaimOutcome(claim, item);
+      emailMeta = summarizeEmailResults(results);
+      claim._emailMeta = emailMeta;
     } catch (e) {
       console.warn('[email] claim approved notify:', e.message);
+      claim._emailMeta = { email_sent: false, email_error: e.message };
     }
   } else if (toStatus === 'rejected') {
     if (claim.user_id) {

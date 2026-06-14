@@ -20,7 +20,7 @@ const {
 const { authOptional, requireAuth, requireRole } = require('../auth');
 const { categorizeFromText, extractColor } = require('../smartMatch');
 const { analyzeImage } = require('../imageAnalysis');
-const { sendReportConfirmation, isEmailConfigured } = require('../email');
+const { sendReportConfirmation, isEmailConfigured, emailWasSent, summarizeEmailResults } = require('../email');
 
 const router = express.Router();
 
@@ -120,13 +120,12 @@ router.post('/', authOptional, async (req, res) => {
     submitted_by = req.user.sub;
     reporter_name = reporter_name || u?.full_name || u?.username || '';
     reporter_email = reporter_email || u?.email || '';
-  } else {
-    if (!reporter_name || !reporter_email) {
-      return res.status(400).json({ error: 'reporter_name and reporter_email are required' });
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reporter_email)) {
-      return res.status(400).json({ error: 'Valid email address required' });
-    }
+  }
+  if (!reporter_name || !reporter_email) {
+    return res.status(400).json({ error: 'reporter_name and reporter_email are required' });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reporter_email)) {
+    return res.status(400).json({ error: 'Valid email address required' });
   }
   if (reporter_phone) {
     reporter_phone = reporter_phone.replace(/\D/g, '');
@@ -200,19 +199,26 @@ router.post('/', authOptional, async (req, res) => {
   if (type === 'lost') {
     runMatchingForReport(item.id, { notify: true, notifyThreshold: 85 });
   }
-  let emailSent = false;
+  let emailMeta = { email_sent: false, email_configured: isEmailConfigured(), email_error: null };
   try {
     const emailResult = await sendReportConfirmation(item);
-    emailSent = Boolean(emailResult?.sent);
+    emailMeta = {
+      email_sent: emailWasSent(emailResult),
+      email_configured: isEmailConfigured(),
+      email_error: emailResult?.error || emailResult?.reason || null,
+    };
+    if (!emailMeta.email_sent) {
+      console.warn('[email] report confirmation not sent:', emailMeta.email_error, 'to', item.reporter_email);
+    }
   } catch (err) {
+    emailMeta.email_error = err.message;
     console.error('[email] report confirmation failed:', err.message);
   }
   const response = itemToResponse(item, Boolean(submitted_by));
   res.status(201).json({
     ...response,
     track: trackToResponse(item),
-    email_sent: emailSent,
-    email_configured: isEmailConfigured(),
+    ...emailMeta,
   });
 });
 
@@ -251,16 +257,16 @@ router.patch('/:id/claim', requireAuth, requireRole('admin'), async (req, res) =
   if (!item) return res.status(404).json({ error: 'Not found' });
   const claimant = parseClaimantFields(req.body || {});
   if (claimant.error) return res.status(400).json({ error: claimant.error });
-  const claim = await markItemClaimedWithClaimer(id, {
+  const result = await markItemClaimedWithClaimer(id, {
     ...claimant,
     description: String(req.body?.description || '').trim() || 'Claim recorded by administrator.',
     proof_data: req.body?.proof_data || '',
     id_photo_data: req.body?.id_photo_data || '',
   }, req.user.sub);
-  if (!claim) {
+  if (!result?.claim) {
     return res.status(404).json({ error: 'Not found or not approved' });
   }
-  res.json({ ok: true, claim: claimToResponse(claim, true) });
+  res.json({ ok: true, claim: claimToResponse(result.claim, true), ...(result.emailMeta || {}) });
 });
 
 router.delete('/:id', requireAuth, requireRole('admin'), (req, res) => {

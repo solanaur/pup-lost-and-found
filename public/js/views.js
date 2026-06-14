@@ -843,17 +843,30 @@
     return `${pubHeader()}<main class="public-page page-report">${content}</main>${siteFooter()}`;
   }
 
-  function guestReporterFields(w) {
-    if (A().isAuthed()) return '';
+  function reporterContactFields(w) {
+    const user = state().user;
+    const isStudent = user && user.role === 'student';
+    if (A().isAuthed() && !isStudent) return '';
+    const prefillName = w.reporter_name || (isStudent ? (user.full_name || user.username || '') : '');
+    const prefillEmail = w.reporter_email || (isStudent ? (user.email || '') : '');
+    const prefillPhone = w.reporter_phone || '';
+    const title = isStudent ? 'Your Contact Information' : 'Your Contact Information';
+    const note = isStudent
+      ? 'We will email confirmations and updates to this address.'
+      : 'No account required. We\'ll email you a confirmation and tracking link.';
     return `<div class="report-guest-fields">
-      <h3 class="report-guest-title">Your Contact Information</h3>
-      <p class="muted report-guest-note">No account required. We'll email you a confirmation and tracking link.</p>
+      <h3 class="report-guest-title">${title}</h3>
+      <p class="muted report-guest-note">${note}</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="field" style="grid-column:1/-1"><label>Full Name</label><input name="reporter_name" value="${esc(w.reporter_name || '')}" required placeholder="Juan Dela Cruz"></div>
-        <div class="field"><label>Email Address</label><input name="reporter_email" type="email" value="${esc(w.reporter_email || '')}" required placeholder="you@iskolarngbayan.pup.edu.ph"></div>
-        <div class="field"><label>Contact Number</label><input name="reporter_phone" value="${esc(w.reporter_phone || '')}" placeholder="09123456789" maxlength="11" inputmode="numeric" pattern="[0-9]{11}"></div>
+        <div class="field" style="grid-column:1/-1"><label>Full Name</label><input name="reporter_name" value="${esc(prefillName)}" required placeholder="Juan Dela Cruz"></div>
+        <div class="field"><label>Email Address</label><input name="reporter_email" type="email" value="${esc(prefillEmail)}" required placeholder="you@iskolarngbayan.pup.edu.ph"></div>
+        <div class="field"><label>Contact Number</label><input name="reporter_phone" value="${esc(prefillPhone)}" placeholder="09123456789" maxlength="11" inputmode="numeric" pattern="[0-9]{11}"></div>
       </div>
     </div>`;
+  }
+
+  function guestReporterFields(w) {
+    return reporterContactFields(w);
   }
 
   function viewTrack() {

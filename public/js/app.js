@@ -579,7 +579,7 @@ function bindEvents() {
           return;
         }
         await Api.approveClaim(cid, { checklist });
-        toast('Claim approved — item marked as claimed');
+        toast('Claim approved — notification emails sent');
         state.adminClaimsTab = 'claimed';
         await reloadAfterMutation();
         render();
@@ -846,8 +846,16 @@ function bindEvents() {
           ...(created.track || created),
           email_sent: created.email_sent,
           email_configured: created.email_configured,
+          email_error: created.email_error,
+          reporter_email: created.reporter_email,
         };
-        toast(type === 'found' ? 'Report submitted — pending admin review' : 'Lost report submitted — now active');
+        if (created.email_sent) {
+          toast(type === 'found' ? 'Report submitted — check your email for confirmation' : 'Lost report submitted — check your email for confirmation');
+        } else if (!created.email_configured) {
+          toast('Report saved — email is not configured on the server. Save your tracking link.');
+        } else {
+          toast(`Report saved — email could not be sent${created.email_error ? `: ${created.email_error}` : ''}. Save your tracking link.`);
+        }
         nav(`track/${created.code}`);
       } catch (err) { toast(err.message); }
     };
@@ -1209,13 +1217,22 @@ function openClaimModal(itemId) {
       id_photo_data: idp,
     };
     try {
-      if (user && user.role === 'student') await Api.submitClaim(payload);
-      else await Api.submitGuestClaim(payload);
-      toast(isLost ? 'Recovery submitted — pending verification' : 'Claim submitted — pending verification');
+      if (user && user.role === 'student') {
+        const res = await Api.submitClaim(payload);
+        overlay.remove();
+        if (res.email_sent) toast('Claim submitted — check your email for confirmation');
+        else if (!res.email_configured) toast('Claim saved — email not configured on server');
+        else toast(`Claim saved — email not sent${res.email_error ? `: ${res.email_error}` : ''}`);
+        await loadAuthed();
+        nav('my-claims');
+        return;
+      }
+      const res = await Api.submitGuestClaim(payload);
       overlay.remove();
-      await loadAuthed();
-      if (user && user.role === 'student') nav('my-claims');
-      else nav(`item/${itemId}`);
+      if (res.email_sent) toast('Claim submitted — check your email for confirmation');
+      else if (!res.email_configured) toast('Claim saved — email not configured on server');
+      else toast(`Claim saved — email not sent${res.email_error ? `: ${res.email_error}` : ''}`);
+      nav(`item/${itemId}`);
     } catch (err) { toast(err.message); }
   };
   hydrateIcons();
