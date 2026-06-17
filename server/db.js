@@ -74,6 +74,7 @@ function migrateStore(data) {
     ...c,
     claimant_student_number: c.claimant_student_number || '',
     claimant_program_section: c.claimant_program_section || '',
+    approved_at: c.approved_at || (c.status === 'approved' ? c.created_at : ''),
   }));
   mem.matches = mem.matches || [];
   mem.nextMatchId = mem.nextMatchId || 1;
@@ -135,6 +136,13 @@ function migrateStore(data) {
       reporter_name: i.reporter_name || '',
       reporter_email: i.reporter_email || '',
       reporter_phone: i.reporter_phone || '',
+      claimed_by_name: i.claimed_by_name || '',
+      claimed_by_student_number: i.claimed_by_student_number || '',
+      claimed_by_program_section: i.claimed_by_program_section || '',
+      claimed_by_email: i.claimed_by_email || '',
+      claimed_by_phone: i.claimed_by_phone || '',
+      claimed_at: i.claimed_at || '',
+      approved_claim_id: i.approved_claim_id || null,
       tracking_token: i.tracking_token || crypto.randomBytes(12).toString('hex'),
       submitted_by: i.submitted_by ?? null,
       item_category: cat,
@@ -155,6 +163,12 @@ function migrateStore(data) {
       ai_detected_colors: i.ai_detected_colors || '',
       ai_confidence_score: i.ai_confidence_score || 0,
     };
+  });
+
+  (mem.items || []).forEach((item) => {
+    if (item.status !== 'claimed' || item.claimed_by_name) return;
+    const approved = (mem.claims || []).find((c) => c.item_id === item.id && c.status === 'approved');
+    if (approved) recordClaimantOnItem(item, approved);
   });
 
   mem.matches = (mem.matches || []).map((m) => ({
@@ -408,6 +422,56 @@ function userPublic(u) {
   };
 }
 
+function getApprovedClaimForItem(itemId) {
+  return mem.claims.find((c) => c.item_id === itemId && c.status === 'approved') || null;
+}
+
+function claimantSnapshotFromClaim(claim) {
+  const user = claim.user_id ? getUserById(claim.user_id) : null;
+  return {
+    claim_id: claim.id,
+    name: claim.claimant_name || (user ? (user.full_name || user.username) : ''),
+    student_number: claim.claimant_student_number || (user ? user.username : ''),
+    program_section: claim.claimant_program_section || (user && user.course
+      ? `${user.course}${user.year_level ? ` ${user.year_level}` : ''}`.trim()
+      : ''),
+    email: claim.claimant_email || (user ? user.email : ''),
+    phone: claim.claimant_phone || '',
+    claimed_at: claim.approved_at || claim.created_at || '',
+  };
+}
+
+function recordClaimantOnItem(item, claim) {
+  if (!item || !claim) return item;
+  const snapshot = claimantSnapshotFromClaim(claim);
+  item.claimed_by_name = String(snapshot.name || '').slice(0, 120);
+  item.claimed_by_student_number = String(snapshot.student_number || '').slice(0, 80);
+  item.claimed_by_program_section = String(snapshot.program_section || '').slice(0, 120);
+  item.claimed_by_email = String(snapshot.email || '').slice(0, 200);
+  item.claimed_by_phone = String(snapshot.phone || '').slice(0, 40);
+  item.claimed_at = snapshot.claimed_at || nowIso();
+  item.approved_claim_id = claim.id;
+  return item;
+}
+
+function itemClaimantResponse(item, includeDetails) {
+  if (!includeDetails) return undefined;
+  const fromItem = item.claimed_by_name
+    ? {
+      claim_id: item.approved_claim_id,
+      name: item.claimed_by_name,
+      student_number: item.claimed_by_student_number,
+      program_section: item.claimed_by_program_section,
+      email: item.claimed_by_email,
+      phone: item.claimed_by_phone,
+      claimed_at: item.claimed_at,
+    }
+    : null;
+  if (fromItem) return fromItem;
+  const claim = getApprovedClaimForItem(item.id);
+  return claim ? claimantSnapshotFromClaim(claim) : null;
+}
+
 function itemToResponse(item, includeSubmitter) {
   const u = item.submitted_by ? getUserById(item.submitted_by) : null;
   const { buildTrackUrl } = require('./email');
@@ -444,6 +508,7 @@ function itemToResponse(item, includeSubmitter) {
     ai_detected_category: item.ai_detected_category || '',
     ai_detected_colors: item.ai_detected_colors || '',
     ai_confidence_score: item.ai_confidence_score || 0,
+    claimant: itemClaimantResponse(item, includeSubmitter),
   };
 }
 
@@ -656,6 +721,7 @@ function createClaim(row) {
     id_photo_data: (row.id_photo_data || '').slice(0, 4_000_000),
     status: row.status || 'pending',
     admin_feedback: '',
+    approved_at: row.status === 'approved' ? nowIso() : '',
     created_at: nowIso(),
   };
   mem.claims.push(claim);
@@ -694,6 +760,8 @@ async function markItemClaimedWithClaimer(itemId, row, actorId) {
     status: 'approved',
   });
   item.status = 'claimed';
+  claim.approved_at = nowIso();
+  recordClaimantOnItem(item, claim);
   mem.claims
     .filter((c) => c.item_id === itemId && c.id !== claim.id && c.status === 'pending')
     .forEach((other) => {
@@ -751,6 +819,7 @@ function claimToResponse(claim, includeUser) {
     id_photo_data: includeUser ? (claim.id_photo_data || '') : '',
     status: claim.status,
     admin_feedback: claim.admin_feedback || '',
+    approved_at: claim.approved_at || '',
     date: formatDate(claim.created_at),
     created_at: claim.created_at,
   };
@@ -766,6 +835,8 @@ async function updateClaimStatus(id, fromStatuses, toStatus, feedback, actorId, 
   const item = getItem(claim.item_id);
   if (toStatus === 'approved' && item) {
     item.status = 'claimed';
+    claim.approved_at = nowIso();
+    recordClaimantOnItem(item, claim);
     mem.claims
       .filter((c) => c.item_id === item.id && c.id !== id && c.status === 'pending')
       .forEach((other) => {
@@ -831,26 +902,62 @@ function getStats() {
 
 function getAnalytics() {
   const items = mem.items;
+  const claims = mem.claims;
   const byCat = {};
   const byBuilding = {};
   items.forEach((i) => {
     const c = i.item_category || 'General';
     byCat[c] = (byCat[c] || 0) + 1;
-    const b = i.building || 'Other';
+    const b = i.building || i.loc || 'Other';
     byBuilding[b] = (byBuilding[b] || 0) + 1;
   });
-  const months = {};
+
+  const monthlyMap = {};
   items.forEach((i) => {
-    const m = new Date(i.created_at).toLocaleString('en-US', { month: 'short' });
-    months[m] = (months[m] || 0) + 1;
+    if (!i.created_at) return;
+    const d = new Date(i.created_at);
+    if (Number.isNaN(d.getTime())) return;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    monthlyMap[key] = (monthlyMap[key] || 0) + 1;
   });
+
+  const monthly = [];
+  const now = new Date();
+  for (let offset = 5; offset >= 0; offset -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    monthly.push({
+      name: d.toLocaleString('en-US', { month: 'short' }),
+      count: monthlyMap[key] || 0,
+    });
+  }
+
+  const approvedMatches = mem.matches.filter((m) => m.status === 'approved' || m.match_score >= 80);
+  const aiAccuracy = mem.matches.length
+    ? Math.round(approvedMatches.length / mem.matches.length * 100)
+    : 87;
+
+  const claimedItems = items.filter((i) => i.status === 'claimed' && i.created_at);
+  let avgRecoveryDays = 4.2;
+  if (claimedItems.length) {
+    const totalDays = claimedItems.reduce((sum, item) => {
+      const claim = claims.find((c) => c.item_id === item.id && c.status === 'approved');
+      const end = claim ? new Date(claim.created_at) : new Date();
+      const start = new Date(item.created_at);
+      return sum + Math.max(0, (end - start) / (1000 * 60 * 60 * 24));
+    }, 0);
+    avgRecoveryDays = Math.round((totalDays / claimedItems.length) * 10) / 10;
+  }
+
   return {
     by_category: Object.entries(byCat).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
     by_building: Object.entries(byBuilding).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
-    monthly: Object.entries(months).map(([name, count]) => ({ name, count })),
-    ai_accuracy_pct: 87,
-    avg_recovery_days: 4.2,
+    monthly,
+    ai_accuracy_pct: aiAccuracy,
+    avg_recovery_days: avgRecoveryDays,
     claim_success_pct: getStats().claims_resolved_pct,
+    total_reports: items.length,
+    total_claims: claims.length,
   };
 }
 
@@ -1040,6 +1147,8 @@ module.exports = {
   markItemClaimedWithClaimer,
   listClaims,
   claimToResponse,
+  getApprovedClaimForItem,
+  recordClaimantOnItem,
   updateClaimStatus,
   addNotification,
   addLog,

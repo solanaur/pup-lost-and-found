@@ -13,35 +13,8 @@ const {
 
 const router = express.Router();
 
-router.post('/signup', (req, res) => {
-  const { full_name, username, email, course, year_level, password, id_photo_data, avatar_data } = req.body || {};
-  if (!full_name || !username || !password) {
-    return res.status(400).json({ error: 'full_name, username, and password required' });
-  }
-  if (String(password).length < 6) {
-    return res.status(400).json({ error: 'Password must be at least 6 characters' });
-  }
-  if (!id_photo_data || String(id_photo_data).length < 30) {
-    return res.status(400).json({ error: 'Valid school ID photo required' });
-  }
-  if (getUserByUsername(String(username).trim())) {
-    return res.status(409).json({ error: 'Username already exists' });
-  }
-  const user = createUser({
-    username: String(username).trim(),
-    full_name: String(full_name).trim(),
-    email: String(email || '').trim(),
-    course: String(course || '').trim(),
-    year_level: String(year_level || '').trim(),
-    password_hash: bcrypt.hashSync(password, 10),
-    id_photo_data,
-    avatar_data: avatar_data || '',
-  });
-  res.status(201).json({
-    ok: true,
-    message: 'Signup submitted. Wait for admin approval before logging in.',
-    user: userPublic(user),
-  });
+router.post('/signup', (_req, res) => {
+  res.status(403).json({ error: 'Registration is disabled. Contact the Lost & Found Office.' });
 });
 
 router.post('/login', (req, res) => {
@@ -57,6 +30,9 @@ router.post('/login', (req, res) => {
     return res.status(403).json({ error: result.message });
   }
   if (result.error === 'suspended') {
+    return res.status(403).json({ error: result.message });
+  }
+  if (result.error === 'forbidden') {
     return res.status(403).json({ error: result.message });
   }
   addLog('login', 'user', result.id, result.username, result.id);

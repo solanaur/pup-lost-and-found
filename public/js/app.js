@@ -18,7 +18,7 @@ const state = {
   aiQuery: '',
   activeTab: 'lost',
   claimsTab: 'active',
-  adminReportsTab: 'all',
+  adminReportsTab: 'pending',
   adminReportsSelectedId: null,
   adminReportsSearch: '',
   adminReportsFilterType: 'all',
@@ -27,6 +27,7 @@ const state = {
   adminReportsFilterOpen: false,
   adminReportsPage: 1,
   adminClaimsTab: 'pending',
+  expandedClaimIds: {},
   adminMoreTab: 'analytics',
   reportMatches: {},
   userMatches: [],
@@ -220,8 +221,6 @@ async function loadAuthed() {
       tasks.push(Api.adminAllItems().then((i) => { state.adminAllItems = i; }).catch(() => { state.adminAllItems = state.pendingItems || []; }));
       tasks.push(Api.pendingClaims().then((c) => { state.pendingClaims = c; }));
       tasks.push(Api.adminAllClaims().then((c) => { state.adminAllClaims = c; }).catch(() => { state.adminAllClaims = state.pendingClaims || []; }));
-      tasks.push(Api.pendingUsers().then((u) => { state.pendingUsers = u; }));
-      tasks.push(Api.adminUsers().then((u) => { state.adminUsers = u; }));
       tasks.push(Api.adminActivity().then((a) => { state.activity = a; }));
       tasks.push(Api.adminAnalytics().then((a) => { state.analytics = a; }));
       tasks.push(Api.adminMatches().then((m) => { state.adminMatches = m; state.aiMonitor = m; }).catch(() => { state.adminMatches = []; }));
@@ -252,15 +251,20 @@ async function render() {
   if (!V) return;
   const { path, id } = parseRoute();
 
+  if (path === 'register') {
+    nav('login');
+    return;
+  }
+
   if (['dashboard', 'my-reports', 'my-claims', 'profile', 'notifications', 'ai-search'].includes(path) && !isAuthed()) {
     nav('login');
     return;
   }
   if (isAdminRoute(path) && !isAdmin()) {
-    nav(isAuthed() ? 'dashboard' : 'login');
+    nav('login');
     return;
   }
-  if (isAuthed() && (path === 'home' || path === 'login' || path === 'register')) {
+  if (isAuthed() && (path === 'home' || path === 'login')) {
     nav(isAdmin() ? 'admin' : 'dashboard');
     return;
   }
@@ -282,7 +286,6 @@ async function render() {
 
   if (path === 'admin/analytics') state.adminMoreTab = 'analytics';
   if (path === 'admin/audit') state.adminMoreTab = 'audit';
-  if (path === 'admin/settings') state.adminMoreTab = 'settings';
 
   if (path === 'item' && id) {
     try {
@@ -311,7 +314,6 @@ async function render() {
   switch (path) {
     case 'home': html = V.viewHome(); break;
     case 'login': html = V.viewLogin(); break;
-    case 'register': html = V.viewRegister(); break;
     case 'dashboard': html = V.viewDashboard(); break;
     case 'ai-search': html = V.viewAiSearch(); break;
     case 'browse': html = V.viewBrowse(); break;
@@ -336,13 +338,11 @@ async function render() {
     case 'admin':
     case 'admin/reports':
     case 'admin/claims':
-    case 'admin/users':
     case 'admin/ai':
     case 'admin/more':
     case 'admin/analytics':
-    case 'admin/settings':
     case 'admin/audit':
-      html = V.viewAdmin(path === 'admin/analytics' || path === 'admin/audit' || path === 'admin/settings' ? 'admin/more' : path);
+      html = V.viewAdmin(path === 'admin/analytics' || path === 'admin/audit' ? 'admin/more' : path);
       break;
     default:
       html = V.viewHome();
@@ -433,7 +433,22 @@ function bindEvents() {
         nav(el.dataset.path);
         return;
       }
-      if (action === 'logout') { closePubNav(); Api.setToken(''); state.user = null; nav('home'); return; }
+      if (action === 'toggle-profile-menu') {
+        const wrap = el.closest('.topbar-user-wrap');
+        document.querySelectorAll('.topbar-user-wrap.open').forEach((m) => { if (m !== wrap) m.classList.remove('open'); });
+        const open = wrap?.classList.toggle('open');
+        el.setAttribute('aria-expanded', open ? 'true' : 'false');
+        return;
+      }
+      if (action === 'logout') {
+        closePubNav();
+        document.querySelectorAll('.topbar-user-wrap.open').forEach((m) => m.classList.remove('open'));
+        if (!window.confirm('Are you sure you want to log out?')) return;
+        Api.setToken('');
+        state.user = null;
+        nav('home');
+        return;
+      }
       if (action === 'open-item') { nav(`item/${el.dataset.id}`); return; }
       if (action === 'run-ai-search') {
         const inp = document.getElementById('aiSearchInput');
@@ -493,6 +508,15 @@ function bindEvents() {
       if (action === 'toggle-admin-reports-filter') {
         state.adminReportsFilterOpen = !state.adminReportsFilterOpen;
         render();
+        return;
+      }
+      if (action === 'toggle-claim-review') {
+        const card = el.closest('.claim-review-card');
+        if (!card) return;
+        const id = card.dataset.id;
+        const open = card.classList.toggle('is-open');
+        el.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (id) state.expandedClaimIds[id] = open;
         return;
       }
       if (action === 'toggle-ar-accordion') {
@@ -575,17 +599,22 @@ function bindEvents() {
           proof: Boolean(document.getElementById(`chk-proof-${cid}`)?.checked),
         };
         if (!checklist.student_id || !checklist.description) {
-          toast('Complete verification checklist');
+          toast('Verify student ID and item description before approving');
           return;
         }
         await Api.approveClaim(cid, { checklist });
-        toast('Claim approved — notification emails sent');
+        toast('Claim approved — item marked as claimed');
         state.adminClaimsTab = 'claimed';
         await reloadAfterMutation();
+        const route = parseRoute();
+        if (route.path === 'item' && route.id) {
+          try { state.currentItem = await Api.item(route.id); } catch (_) {}
+        }
         render();
         return;
       }
       if (action === 'admin-reject-claim') {
+        if (!window.confirm('Reject this claim? The claimant will be notified.')) return;
         await Api.rejectClaim(el.dataset.id, 'Verification failed.');
         toast('Claim rejected');
         await reloadAfterMutation();
@@ -672,8 +701,12 @@ function bindEvents() {
         return;
       }
       if (action === 'admin-match-status') {
-        await Api.updateMatchStatus(el.dataset.id, el.dataset.status);
-        toast(`Match ${el.dataset.status}`);
+        const status = el.dataset.status;
+        const label = status === 'approved' ? 'approve' : 'reject';
+        if (status === 'dismissed' && !window.confirm('Reject this Gemini match? It will be removed from the review queue.')) return;
+        await Api.updateMatchStatus(el.dataset.id, status);
+        toast(`Match ${label === 'approve' ? 'approved' : 'rejected'}`);
+        await reloadAfterMutation();
         render();
         return;
       }
@@ -686,7 +719,7 @@ function bindEvents() {
         state.wizard.color = a.color || a.ai_detected_colors;
         state.wizard.brand = a.brand || state.wizard.brand;
         state.wizard.description = cleanAiDescription(a.ai_description || a.description);
-        toast('AI suggestions applied');
+        toast('Gemini suggestions applied');
         render();
         return;
       }
@@ -742,44 +775,10 @@ function bindEvents() {
         Api.setToken(res.token);
         state.user = res.user;
         toast('Signed in successfully');
-        const claimItem = sessionStorage.getItem('ibalik_claim_item');
-        if (claimItem && res.user.role === 'student') {
-          sessionStorage.removeItem('ibalik_claim_item');
-          nav(`item/${claimItem}`);
-          return;
-        }
         nav(res.user.role === 'admin' ? 'admin' : 'dashboard');
       } catch (err) { toast(err.message); }
     };
   }
-
-  const regForm = document.querySelector('[data-action="register-submit"]');
-  if (regForm) {
-    regForm.onsubmit = async (e) => {
-      e.preventDefault();
-      const fd = new FormData(regForm);
-      if (fd.get('password') !== fd.get('password2')) return toast('Passwords do not match');
-      if (!idPhotoData) return toast('Upload school ID photo');
-      try {
-        await Api.signup({
-          full_name: fd.get('full_name'),
-          username: fd.get('username'),
-          email: fd.get('email'),
-          course: fd.get('course'),
-          year_level: fd.get('year_level'),
-          password: fd.get('password'),
-          id_photo_data: idPhotoData,
-          avatar_data: avatarData,
-        });
-        toast('Registration submitted for verification');
-        nav('login');
-      } catch (err) { toast(err.message); }
-    };
-  }
-
-  document.querySelectorAll('[data-action="id-upload"]').forEach((inp) => {
-    inp.onchange = () => readFile(inp, (d) => { idPhotoData = d; });
-  });
 
   document.querySelectorAll('[data-action="report-photo"]').forEach((inp) => {
     inp.onchange = async () => {
@@ -1067,25 +1066,13 @@ function openClaimLoginModal(itemId) {
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `<div class="modal">
     <h3 style="margin:0 0 12px;color:var(--pup-maroon)">Account Required</h3>
-    <p style="font-size:14px;line-height:1.6;color:var(--muted);margin:0 0 20px">To protect ownership and prevent fraudulent claims, an account is required before claiming an item.</p>
+    <p style="font-size:14px;line-height:1.6;color:var(--muted);margin:0 0 20px">Submit a guest claim with your details and proof of ownership — no account required.</p>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button type="button" class="btn btn-primary btn-block" id="claimLoginBtn">Login</button>
-      <button type="button" class="btn btn-outline btn-block" id="claimRegisterBtn">Create Account</button>
-      <button type="button" class="btn btn-ghost btn-block" id="closeClaimLogin">Cancel</button>
+      <button type="button" class="btn btn-ghost btn-block" id="closeClaimLogin">Continue as guest</button>
     </div>
   </div>`;
   document.body.appendChild(overlay);
   overlay.querySelector('#closeClaimLogin').onclick = () => overlay.remove();
-  overlay.querySelector('#claimLoginBtn').onclick = () => {
-    sessionStorage.setItem('ibalik_claim_item', String(itemId));
-    overlay.remove();
-    nav('login');
-  };
-  overlay.querySelector('#claimRegisterBtn').onclick = () => {
-    sessionStorage.setItem('ibalik_claim_item', String(itemId));
-    overlay.remove();
-    nav('register');
-  };
   overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 }
 
@@ -1166,6 +1153,10 @@ function openAdminClaimModal(itemId) {
       overlay.remove();
       state.adminClaimsTab = 'claimed';
       await reloadAfterMutation();
+      const route = parseRoute();
+      if (route.path === 'item' && Number(route.id) === Number(itemId)) {
+        try { state.currentItem = await Api.item(itemId); } catch (_) {}
+      }
       render();
     } catch (err) { toast(err.message); }
   };
@@ -1248,6 +1239,14 @@ async function init() {
     state.user = null;
   }
   window.addEventListener('hashchange', render);
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.topbar-user-wrap')) {
+      document.querySelectorAll('.topbar-user-wrap.open').forEach((m) => {
+        m.classList.remove('open');
+        m.querySelector('[data-action="toggle-profile-menu"]')?.setAttribute('aria-expanded', 'false');
+      });
+    }
+  });
   if (!location.hash) location.hash = '#/home';
   render();
 }

@@ -7,6 +7,20 @@
   const icon = (n, s) => window.icon(n, s);
   const state = () => A().state;
 
+  let geminiStarSeq = 0;
+
+  function geminiStar(size) {
+    const s = size || 14;
+    const id = `gemGrad-${++geminiStarSeq}`;
+    return `<svg class="gemini-star" width="${s}" height="${s}" viewBox="0 0 28 28" aria-hidden="true"><defs><linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4285F4"/><stop offset="45%" stop-color="#9B72F2"/><stop offset="100%" stop-color="#D96570"/></linearGradient></defs><path fill="url(#${id})" d="M14 3l2.2 6.8H23l-5.6 4.1 2.2 6.8L14 16.6l-5.6 3.9 2.2-6.8L5 9.8h6.8z"/></svg>`;
+  }
+
+  function poweredByGemini(opts = {}) {
+    const sm = opts.sm ? ' gemini-badge-sm' : '';
+    const light = opts.light ? ' gemini-badge-light' : '';
+    return `<span class="gemini-badge${sm}${light}" title="AI suggestions powered by Google Gemini">${geminiStar(opts.size || 14)}<span>Powered by <strong>Gemini</strong></span></span>`;
+  }
+
   function pupSeal(sm) {
     return `<img src="/images/pup-logo.png" alt="Polytechnic University of the Philippines" class="pup-seal${sm ? ' sm' : ''}" width="${sm ? 40 : 52}" height="${sm ? 40 : 52}">`;
   }
@@ -256,10 +270,8 @@
         <a href="#/office" data-action="nav" data-path="office">Lost &amp; Found Office</a>
         <a href="#/faq" data-action="nav" data-path="faq">Help</a>
         ${authed
-      ? `<button type="button" class="btn btn-soft btn-sm" data-action="nav" data-path="${A().isAdmin() ? 'admin' : 'dashboard'}">Portal</button>
-           <button type="button" class="btn btn-outline btn-sm" data-action="logout">Logout</button>`
-      : `<button type="button" class="btn btn-ghost btn-sm" data-action="nav" data-path="login">Login</button>
-           <button type="button" class="btn btn-primary btn-sm" data-action="nav" data-path="register">Register</button>`}
+      ? `<button type="button" class="btn btn-soft btn-sm" data-action="nav" data-path="admin">Portal</button>`
+      : `<button type="button" class="btn btn-ghost btn-sm" data-action="nav" data-path="login">Admin Login</button>`}
       </nav>
     </header>`;
   }
@@ -289,7 +301,6 @@
   }
 
   function sidebarNav(active) {
-    const unread = state().notifications.filter((n) => !n.is_read).length;
     const tracker = state().tracker || {};
     const pendingReports = tracker.pending_items || (state().pendingItems || []).length;
     const pendingClaims = tracker.pending_claims || (state().pendingClaims || []).length;
@@ -297,9 +308,7 @@
       ['admin', 'Dashboard', 'layout-dashboard'],
       ['admin/reports', 'Reports', 'clipboard-list', pendingReports || undefined],
       ['admin/claims', 'Claims', 'shield-check', pendingClaims || undefined],
-      ['admin/users', 'Users', 'users'],
       ['admin/ai', 'AI Matches', 'git-compare'],
-      ...(unread > 0 ? [['notifications', 'Notifications', 'bell', unread]] : []),
       ['admin/more', 'More', 'more-horizontal'],
     ] : [
       ['dashboard', 'Home', 'home'],
@@ -310,7 +319,6 @@
       null,
       ['my-reports', 'My Reports', 'clipboard-list'],
       ['my-claims', 'My Claims', 'shield-check'],
-      ['notifications', 'Notifications', 'bell', unread],
       ['profile', 'Profile Settings', 'user'],
       ['faq', 'FAQ / Help Center', 'help-circle'],
       ['office', 'Contact Us', 'phone'],
@@ -324,20 +332,19 @@
         ${links.map((entry) => {
     if (!entry) return '<div class="sidebar-divider"></div>';
     const [p, label, ic, badge] = entry;
-    const isActive = active === p || (p === 'admin/more' && ['admin/more', 'admin/analytics', 'admin/audit', 'admin/settings'].includes(active));
+    const isActive = active === p || (p === 'admin/more' && ['admin/more', 'admin/analytics', 'admin/audit'].includes(active));
     return `<button type="button" class="nav-item ${isActive ? 'active' : ''}" data-action="nav" data-path="${p}">
             ${icon(ic, 18)} ${label}${badge ? `<span class="badge-count">${badge}</span>` : ''}
           </button>`;
   }).join('')}
       </nav>
-      <button type="button" class="nav-item nav-item-logout" data-action="logout">${icon('log-out', 18)} Logout</button>
     </aside>`;
   }
 
   function appShell(content, active) {
     const u = state().user;
     const unread = state().notifications.filter((n) => !n.is_read).length;
-    const roleLabel = u?.role === 'admin' ? 'Administrator' : 'Student';
+    const roleLabel = u?.role === 'admin' ? 'Administrator' : 'Account';
     return `<div class="app-shell">
       ${sidebarNav(active)}
       <div class="main-wrap">
@@ -351,14 +358,20 @@
               ${icon('bell', 20)}
               ${unread ? `<span class="topbar-badge">${unread}</span>` : ''}
             </button>
-            <button type="button" class="topbar-user" data-action="nav" data-path="profile">
-              <span class="topbar-avatar">${u?.avatar_data ? `<img src="${esc(u.avatar_data)}" alt="">` : icon('user', 18)}</span>
-              <span class="topbar-user-meta">
-                <span class="topbar-user-name">${esc(u?.full_name || u?.username || 'Account')}</span>
-                <span class="topbar-user-role">${roleLabel}</span>
-              </span>
-              ${icon('chevron-down', 16)}
-            </button>
+            <div class="topbar-user-wrap">
+              <button type="button" class="topbar-user" data-action="toggle-profile-menu" aria-expanded="false" aria-haspopup="true">
+                <span class="topbar-avatar">${u?.avatar_data ? `<img src="${esc(u.avatar_data)}" alt="">` : icon('user', 18)}</span>
+                <span class="topbar-user-meta">
+                  <span class="topbar-user-name">${esc(u?.full_name || u?.username || 'Account')}</span>
+                  <span class="topbar-user-role">${roleLabel}</span>
+                </span>
+                ${icon('chevron-down', 16)}
+              </button>
+              <div class="topbar-user-menu" role="menu">
+                <button type="button" class="topbar-menu-item" role="menuitem" data-action="nav" data-path="profile">${icon('user', 16)} Profile Settings</button>
+                <button type="button" class="topbar-menu-item topbar-menu-item-danger" role="menuitem" data-action="logout">${icon('log-out', 16)} Log out</button>
+              </div>
+            </div>
           </div>
         </header>
         <main class="page page-dashboard${active === 'admin/reports' ? ' page-admin-reports' : ''}">${content}</main>
@@ -433,43 +446,24 @@
       <div class="auth-visual">
         ${pupSeal()}
         <h1 style="margin:16px 0 12px;font-size:28px">iBALIK Portal</h1>
-        <p style="opacity:.9;max-width:360px;line-height:1.65">Sign in with your PUP credentials to report items, submit claims, and track verification status.</p>
+        <p style="opacity:.9;max-width:360px;line-height:1.65">Administrator sign-in for the Lost &amp; Found Office portal.</p>
       </div>
       <div class="auth-form-wrap">
         <form class="auth-card" data-action="login-submit">
-          <h2 style="margin:0 0 8px;color:var(--pup-maroon)">Login</h2>
-          <p class="muted" style="margin:0 0 20px">Student or administrator account</p>
-          <div class="field"><label>Student Number / Admin ID</label><input name="username" required placeholder="2021-00001-PQ-0"></div>
-          <div class="field"><label>Password</label><input name="password" type="password" required></div>
+          <h2 style="margin:0 0 8px;color:var(--pup-maroon)">Admin Login</h2>
+          <p class="muted" style="margin:0 0 20px">Office of Student Affairs staff only</p>
+          <div class="field"><label>Admin ID</label><input name="username" required placeholder="admin" autocomplete="username"></div>
+          <div class="field"><label>Password</label><input name="password" type="password" required autocomplete="current-password"></div>
           <button type="submit" class="btn btn-primary btn-block">Sign In</button>
-          <button type="button" class="btn btn-ghost btn-block" style="margin-top:10px" data-action="nav" data-path="home">Continue as Guest</button>
-          <p class="muted" style="text-align:center;margin-top:16px;font-size:12px">Demo: student <code>2021-00001-PQ-0</code> · admin <code>admin</code> · password <code>password</code></p>
+          <button type="button" class="btn btn-ghost btn-block" style="margin-top:10px" data-action="nav" data-path="home">Back to Portal</button>
+          <p class="muted" style="text-align:center;margin-top:16px;font-size:12px">Demo: admin · password <code>password</code></p>
         </form>
       </div>
     </div>`;
   }
 
   function viewRegister() {
-    return `${pubHeader()}
-    <div class="auth-page">
-      <div class="auth-visual"><h1 style="margin:0 0 12px">Student Registration</h1><p style="opacity:.9">Register with a valid PUP student ID for verification by the Office of Student Affairs.</p></div>
-      <div class="auth-form-wrap">
-        <form class="auth-card" data-action="register-submit" style="max-width:440px">
-          <h2 style="margin:0 0 20px;color:var(--pup-maroon)">Create Account</h2>
-          <div class="field"><label>Full Name</label><input name="full_name" required></div>
-          <div class="field"><label>Student Number</label><input name="username" required></div>
-          <div class="field"><label>PUP Email</label><input name="email" type="email"></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div class="field"><label>Course</label><input name="course"></div>
-            <div class="field"><label>Year Level</label><select name="year_level"><option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option></select></div>
-          </div>
-          <div class="field"><label>Password</label><input name="password" type="password" required minlength="6"></div>
-          <div class="field"><label>Confirm Password</label><input name="password2" type="password" required></div>
-          <div class="field"><label>Upload School ID (required)</label><input type="file" accept="image/*" data-action="id-upload" required></div>
-          <button type="submit" class="btn btn-primary btn-block">Submit Registration</button>
-        </form>
-      </div>
-    </div>`;
+    return viewLogin();
   }
 
   function viewDashboard() {
@@ -490,8 +484,11 @@
     const strong = matches.filter((m) => (m.match_score || m.confidence_pct) >= 75).length;
     const inner = `
       <button type="button" class="btn btn-soft btn-sm" data-action="nav" data-path="dashboard" style="margin-bottom:16px">${icon('arrow-left', 16)} Back to Dashboard</button>
-      ${matches.length ? `<div class="match-alert-banner">${icon('check-circle', 20)} We found possible matches for your lost item! Here are the most relevant matches based on our AI analysis.</div>` : ''}
-      <h1 class="page-title">AI Match Results</h1>
+      ${matches.length ? `<div class="match-alert-banner">${icon('check-circle', 20)} We found possible matches for your lost item!</div>` : ''}
+      <div class="page-title-row">
+        <h1 class="page-title">AI Match Results</h1>
+        ${poweredByGemini({ sm: true })}
+      </div>
       <p class="page-sub">${matches.length ? `${matches.length} possible match(es) found` : 'No saved matches yet. Submit a lost item report to run smart matching.'}${strong ? ` · ${strong} strong match(es)` : ''}</p>
       <div class="user-match-list">
         ${matches.length ? matches.map((m) => userMatchCard(m)).join('') : '<div class="empty-state">No matches yet. Report a lost item with a photo to enable AI matching.</div>'}
@@ -513,7 +510,10 @@
         <h3>${esc(found.name || m.found_name || m.name)}</h3>
         <p class="muted" style="font-size:13px;margin:6px 0">${icon('map-pin', 14)} Found in ${esc(loc)}</p>
         <p class="muted" style="font-size:13px">${icon('calendar', 14)} ${esc(date)}${time ? ` · ${esc(time)}` : ''}</p>
-        <div class="user-match-reason"><strong>Why it matches:</strong> ${esc(m.match_reason || m.reason || '')}</div>
+        <div class="user-match-reason">
+          <strong>Why it matches:</strong>
+          <p>${esc(m.match_reason || m.reason || '')}</p>
+        </div>
         <div class="user-match-actions">
           <button type="button" class="btn btn-primary btn-sm" data-action="open-item" data-id="${found.id || m.found_report_id || m.item_id}">View Details</button>
           <button type="button" class="btn btn-outline btn-sm" data-action="claim-item" data-id="${found.id || m.found_report_id || m.item_id}">Claim This Item</button>
@@ -539,8 +539,8 @@
     const fact = (label, value) => `<div class="ai-fact-row"><span class="ai-fact-label">${label}</span><strong class="ai-fact-value">${esc(value || 'Unknown')}</strong></div>`;
     return `<div class="ai-analysis-card">
       <div class="ai-analysis-head">
-        <span class="ai-analysis-title">${icon('sparkles', 18)} AI Analysis Results</span>
-        <span class="ai-conf-badge">AI Confidence ${a.ai_confidence_score || 85}%</span>
+        <span class="ai-analysis-title">${icon('sparkles', 18)} Gemini Analysis</span>
+        <span class="ai-conf-badge">Confidence ${a.ai_confidence_score || 85}%</span>
       </div>
       <div class="ai-analysis-body">
         <div class="ai-analysis-facts">
@@ -562,8 +562,8 @@
         </div>
       </div>
       <div class="ai-analysis-actions">
-        <button type="button" class="btn btn-outline btn-sm" data-action="regenerate-ai">Regenerate Analysis</button>
-        <button type="button" class="btn btn-primary btn-sm" data-action="use-ai-suggestions">Use AI Suggestions</button>
+        <button type="button" class="btn btn-outline btn-sm" data-action="regenerate-ai">Regenerate</button>
+        <button type="button" class="btn btn-primary btn-sm" data-action="use-ai-suggestions">Use Suggestions</button>
       </div>
     </div>`;
   }
@@ -679,12 +679,65 @@
   }
 
   function itemAdminActionButtons(item, btnClass = 'btn-sm') {
+    const pendingClaims = (state().adminAllClaims || state().pendingClaims || [])
+      .filter((c) => c.item_id === item.id && c.status === 'pending').length;
     return `
-      ${item.status === 'pending' ? `<button type="button" class="btn btn-primary ${btnClass}" data-action="admin-approve-item" data-id="${item.id}">${icon('check-circle', btnClass.includes('lg') ? 18 : 16)} Approve</button>` : ''}
-      ${item.status === 'pending' ? `<button type="button" class="btn btn-soft ${btnClass}" data-action="admin-reject-item" data-id="${item.id}">${icon('x-circle', btnClass.includes('lg') ? 18 : 16)} Reject</button>` : ''}
-      ${item.status === 'approved' ? `<button type="button" class="btn btn-soft ${btnClass}" data-action="admin-claim-item" data-id="${item.id}" data-type="${esc(item.type)}">${icon('package-check', btnClass.includes('lg') ? 18 : 16)} Mark Claimed</button>` : ''}
-      <button type="button" class="btn btn-danger ${btnClass}" data-action="admin-delete-item" data-id="${item.id}" data-name="${esc(item.name)}">${icon('trash-2', btnClass.includes('lg') ? 18 : 16)} Delete</button>
-      <button type="button" class="btn btn-outline ${btnClass}" data-action="nav" data-path="admin/reports">${icon('clipboard-list', btnClass.includes('lg') ? 18 : 16)} All Reports</button>`;
+      ${item.status === 'pending' ? `<button type="button" class="btn btn-primary ${btnClass}" data-action="admin-approve-item" data-id="${item.id}">${icon('check-circle', 16)} Approve</button>` : ''}
+      ${item.status === 'pending' ? `<button type="button" class="btn btn-outline ${btnClass}" data-action="admin-reject-item" data-id="${item.id}">${icon('x-circle', 16)} Reject</button>` : ''}
+      ${item.status === 'approved' && pendingClaims
+    ? `<button type="button" class="btn btn-primary ${btnClass}" data-action="nav" data-path="admin/claims">${icon('shield-check', 16)} Review ${pendingClaims} Claim${pendingClaims === 1 ? '' : 's'}</button>`
+    : ''}
+      ${item.status === 'approved' && !pendingClaims
+    ? `<button type="button" class="btn btn-primary ${btnClass}" data-action="admin-claim-item" data-id="${item.id}" data-type="${esc(item.type)}">${icon('package-check', 16)} Mark Claimed</button>`
+    : ''}
+      ${item.status === 'claimed' ? `<button type="button" class="btn btn-outline ${btnClass}" data-action="nav" data-path="admin/claims">${icon('clipboard-list', 16)} View Claim Record</button>` : ''}
+      <button type="button" class="btn btn-danger ${btnClass}" data-action="admin-delete-item" data-id="${item.id}" data-name="${esc(item.name)}">${icon('trash-2', 16)} Delete</button>`;
+  }
+
+  function itemStatusPill(item) {
+    const isFound = item.type === 'found';
+    if (item.status === 'claimed') {
+      return `<span class="item-hero-status item-hero-status-claimed">${icon('package-check', 16)} Claimed</span>`;
+    }
+    if (item.status === 'pending') {
+      return `<span class="item-hero-status item-hero-status-pending">${icon('clock', 16)} Pending review</span>`;
+    }
+    if (isFound && item.status === 'approved') {
+      return `<span class="item-hero-status item-hero-status-found">${icon('check-circle', 16)} Available for claim</span>`;
+    }
+    if (!isFound && item.status === 'approved') {
+      return `<span class="item-hero-status item-hero-status-lost">${icon('search', 16)} Active lost report</span>`;
+    }
+    return `<span class="item-hero-status item-hero-status-pending">${icon('info', 16)} ${esc(item.status || 'Report')}</span>`;
+  }
+
+  function itemClaimantPanel(claimant) {
+    if (!claimant?.name) return '';
+    const claimedDate = claimant.claimed_at
+      ? new Date(claimant.claimed_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      : '';
+    return `<section class="item-claimant-panel">
+      <div class="item-claimant-panel-head">
+        ${icon('user-check', 18)}
+        <div>
+          <strong>Claimed by ${esc(claimant.name)}</strong>
+          ${claimedDate ? `<span class="muted">Released ${esc(claimedDate)}</span>` : ''}
+        </div>
+      </div>
+      <dl class="item-claimant-grid">
+        <div><dt>Student No.</dt><dd>${esc(claimant.student_number || '—')}</dd></div>
+        <div><dt>Program</dt><dd>${esc(claimant.program_section || '—')}</dd></div>
+        <div><dt>Email</dt><dd>${esc(claimant.email || '—')}</dd></div>
+        <div><dt>Phone</dt><dd>${esc(claimant.phone || '—')}</dd></div>
+      </dl>
+    </section>`;
+  }
+
+  function itemDetailChip(iconName, label, value) {
+    return `<div class="item-detail-chip">
+      <span class="item-detail-chip-label">${icon(iconName, 14)} ${esc(label)}</span>
+      <span class="item-detail-chip-value">${value}</span>
+    </div>`;
   }
 
   function itemDetailPhoto(item, gallery) {
@@ -700,10 +753,6 @@
     const { isAdmin, primaryBtn, secondaryActions, showShare } = opts;
     if (isAdmin) {
       return `<footer class="item-detail-actions-bar item-detail-actions-admin">
-        <div class="item-detail-actions-label">
-          <span class="item-admin-status item-admin-status-${esc(item.status)}">${esc(itemAdminStatusLabel(item.status))}</span>
-          <span class="muted">Admin actions</span>
-        </div>
         <div class="item-detail-actions-buttons">${itemAdminActionButtons(item, 'btn-sm')}</div>
       </footer>`;
     }
@@ -721,55 +770,52 @@
     const item = state().currentItem;
     if (!item) return shellWrap('<div class="empty-state">Loading…</div>', 'browse');
     const matches = state().matches || [];
-    const similar = matches.filter((m) => m.item_id !== item.id).slice(0, 4);
+    const similar = matches.filter((m) => m.item_id !== item.id).slice(0, 3);
     const topMatch = matches[0];
     const ai = aiSimilarityBreakdown(item, matches);
     const gallery = galleryViews(item);
     const isFound = item.type === 'found';
     const isClaimable = item.status === 'approved';
-    const timeline = itemTimeline(item);
-    const dateLabel = isFound ? 'Date Found' : 'Date Lost';
+    const dateLabel = isFound ? 'Date found' : 'Date lost';
     const locationLine = [item.building, item.floor, item.room].filter(Boolean).join(' · ') || item.loc;
-
-    const statusPill = isFound && item.status === 'approved'
-      ? `<span class="item-hero-status item-hero-status-found">${icon('check-circle', 16)} Available for claim</span>`
-      : isFound
-        ? `<span class="item-hero-status item-hero-status-pending">${icon('clock', 16)} Pending verification</span>`
-        : item.status === 'approved'
-          ? `<span class="item-hero-status item-hero-status-lost">${icon('search', 16)} Active lost report — mark recovered when found</span>`
-          : `<span class="item-hero-status item-hero-status-lost">${icon('search', 16)} Lost item report</span>`;
+    const isAdmin = A().isAdmin();
+    const claimant = item.claimant || null;
 
     const galleryMain = itemDetailPhoto(item, gallery);
-
-    const isAdmin = A().isAdmin();
 
     const primaryBtn = isAdmin
       ? ''
       : isClaimable
         ? `<button type="button" class="btn btn-primary" data-action="open-claim-modal" data-id="${item.id}">${icon('shield-check', 18)} ${isFound ? 'Claim This Item' : 'Mark as Recovered'}</button>`
-        : `<button type="button" class="btn btn-primary" data-action="nav" data-path="${isFound ? 'report-found' : 'report-lost'}">${icon('file-plus', 18)} Report Similar Item</button>`;
+        : item.status === 'claimed'
+          ? ''
+          : `<button type="button" class="btn btn-primary" data-action="nav" data-path="${isFound ? 'report-found' : 'report-lost'}">${icon('file-plus', 18)} Report Similar Item</button>`;
 
-    const secondaryActions = isAdmin
+    const secondaryActions = isAdmin || item.status === 'claimed'
       ? ''
       : isClaimable
         ? `<button type="button" class="btn btn-outline btn-sm" data-action="nav" data-path="report-lost">${icon('file-plus', 16)} Report Similar</button>`
         : '';
 
-    const aiSectionContent = `
-      ${topMatch ? `<div class="item-match-inline">
+    const metaChips = [
+      itemDetailChip('map-pin', 'Location', esc(item.loc)),
+      itemDetailChip('calendar', dateLabel, esc(formatDetailDate(item))),
+      itemDetailChip('tag', 'Report ID', esc(item.code || `#${item.id}`)),
+      isFound && item.holder ? itemDetailChip('building-2', 'Stored at', esc(item.holder)) : '',
+    ].filter(Boolean).join('');
+
+    const aiSectionContent = topMatch || similar.length
+      ? `${topMatch ? `<div class="item-match-inline">
         <strong>${topMatch.confidence_pct}% potential match</strong>
         <span>Similar to <em>${esc(topMatch.name)}</em>${topMatch.code ? ` (${esc(topMatch.code)})` : ''}</span>
       </div>` : ''}
-      <p class="muted" style="font-size:13px;margin:0 0 16px">${ai.overall
-    ? `Match confidence against active ${isFound ? 'lost' : 'found'} reports`
-    : 'Analysis based on item attributes and campus report patterns'}</p>
-      ${aiProgressBar('Color Match', ai.color)}
-      ${aiProgressBar('Category Match', ai.category)}
-      ${aiProgressBar('Location Match', ai.location)}
-      ${aiProgressBar('Description Match', ai.description)}
-      <div class="related-reports-grid" style="margin-top:20px">${similar.length
-    ? similar.map(relatedReportCard).join('')
-    : '<p class="muted" style="font-size:13px;margin:0">No related reports identified yet.</p>'}</div>`;
+      ${ai.overall ? `<p class="muted" style="font-size:13px;margin:0 0 12px">Match confidence against active ${isFound ? 'lost' : 'found'} reports</p>
+      ${aiProgressBar('Color', ai.color)}
+      ${aiProgressBar('Category', ai.category)}
+      ${aiProgressBar('Location', ai.location)}
+      ${aiProgressBar('Description', ai.description)}` : ''}
+      ${similar.length ? `<div class="related-reports-grid" style="margin-top:16px">${similar.map(relatedReportCard).join('')}</div>` : ''}`
+      : '<p class="muted" style="font-size:13px;margin:0">No related reports identified yet.</p>';
 
     const claimHelpContent = `
       <ol class="item-claim-steps">
@@ -777,35 +823,22 @@
         <li>Describe unique item contents and features</li>
         <li>Visit the Lost &amp; Found Office during office hours</li>
         <li>Wait for staff verification before release</li>
-      </ol>
-      <p class="muted" style="font-size:13px;margin:12px 0 0">${icon('lock', 14)} Certain identifying details are hidden until ownership is verified.</p>`;
+      </ol>`;
 
     const locationContent = `
       <p class="item-loc-text">${icon('map-pin', 16)} ${esc(item.loc)}</p>
-      ${campusMapHtml(item.building)}
-      <div class="context-rows" style="margin-top:16px">
-        <div><span>Campus area</span><strong>${esc(locationLine)}</strong></div>
-        ${isFound ? `<div><span>Stored at</span><strong>${esc(item.holder || 'Lost & Found Office')}</strong></div>` : ''}
-      </div>`;
-
-    const timelineContent = `<ol class="item-timeline">${timeline.map((ev) => `
-      <li><span class="item-timeline-date">${esc(ev.date)}</span><strong>${esc(ev.title)}</strong><span>${esc(ev.desc)}</span></li>`).join('')}
-    </ol>`;
-
-    const officeContent = `
-      <p><strong>PUP Parañaque Campus — Lost &amp; Found Office</strong></p>
-      <p class="muted">Mon – Fri · 8:00 AM – 5:00 PM</p>
-      <p class="muted">Phone: <a href="tel:09123456789">09123456789</a></p>
-      <p class="muted">Email: <a href="mailto:lostfound@pup.edu.ph">lostfound@pup.edu.ph</a></p>`;
+      ${locationLine !== item.loc ? `<p class="muted" style="font-size:13px;margin:8px 0 0">${esc(locationLine)}</p>` : ''}
+      ${campusMapHtml(item.building)}`;
 
     const sections = [
-      isClaimable && !isAdmin ? itemDetailSection('How to Claim', 'clipboard-check', claimHelpContent) : '',
-      itemDetailSection('Location & Map', 'map-pin', locationContent),
-      itemDetailSection('Timeline & History', 'history', timelineContent),
-      itemDetailSection('AI & Related Reports', 'sparkles', aiSectionContent, {
+      isClaimable && !isAdmin ? itemDetailSection('How to Claim', 'clipboard-check', claimHelpContent, { open: true }) : '',
+      itemDetailSection('Location', 'map-pin', locationContent, { open: !isAdmin }),
+      (topMatch || similar.length) && !isAdmin ? itemDetailSection('AI Matches', 'sparkles', aiSectionContent, {
         badge: topMatch ? `${topMatch.confidence_pct}%` : undefined,
-      }),
-      itemDetailSection('Lost & Found Office', 'building-2', officeContent),
+      }) : '',
+      isAdmin && (topMatch || similar.length) ? itemDetailSection('AI & Related Reports', 'sparkles', aiSectionContent, {
+        badge: topMatch ? `${topMatch.confidence_pct}%` : undefined,
+      }) : '',
     ].filter(Boolean).join('');
 
     const body = `
@@ -818,21 +851,18 @@
           <div class="item-detail-hero">
             <div class="item-detail-media">${galleryMain}</div>
             <div class="item-detail-main">
-              ${statusPill}
+              ${itemStatusPill(item)}
               <h1 class="item-detail-title">${esc(item.name)}</h1>
               <p class="item-detail-sub">${esc(item.item_category || 'General')}${item.color ? ` · ${esc(item.color)}` : ''}${item.brand && item.brand !== 'Unknown' ? ` · ${esc(item.brand)}` : ''}</p>
-              <dl class="item-essentials">
-                <div><dt>${icon('map-pin', 15)} Location</dt><dd>${esc(item.loc)}${item.building ? `<small>${esc(locationLine)}</small>` : ''}</dd></div>
-                <div><dt>${icon('calendar', 15)} ${dateLabel}</dt><dd>${esc(formatDetailDate(item))}</dd></div>
-                <div><dt>${icon('tag', 15)} Report ID</dt><dd>${esc(item.code || `#${item.id}`)}</dd></div>
-              </dl>
-              ${item.description ? `<p class="item-detail-desc">${esc(item.description)}</p>` : ''}
+              <div class="item-detail-chips">${metaChips}</div>
+              ${item.description ? `<div class="item-detail-desc-block"><span class="item-detail-desc-label">Description</span><p class="item-detail-desc">${esc(item.description)}</p></div>` : ''}
+              ${isAdmin && item.status === 'claimed' ? itemClaimantPanel(claimant) : ''}
             </div>
           </div>
-          ${itemDetailActionsBar(item, { isAdmin, primaryBtn, secondaryActions, showShare: !isAdmin })}
+          ${itemDetailActionsBar(item, { isAdmin, primaryBtn, secondaryActions, showShare: !isAdmin && item.status !== 'claimed' })}
         </article>
 
-        <div class="item-detail-sections">${sections}</div>
+        ${sections ? `<div class="item-detail-sections">${sections}</div>` : ''}
       </div>`;
     return shellWrap(body, 'browse');
   }
@@ -927,10 +957,10 @@
           </div>
           <input type="file" accept="image/*" data-action="report-photo" id="reportPhotoInput" style="display:none">
           ${w.photo_data ? `<button type="button" class="btn btn-soft btn-sm btn-block" data-action="trigger-photo" style="margin-top:10px">${icon('camera', 16)} Change Photo</button>` : ''}
-          <div class="report-ai-hint">${icon('sparkles', 16)} AI will analyze your photo and suggest item details to save you time.</div>
+          <div class="report-ai-hint">${icon('sparkles', 16)} Upload a photo — Gemini will suggest item name, category, and description.</div>
         </div>
         <div class="report-ai-fields">
-          <div class="field"><label>Item Name ${icon('sparkles', 14)}</label><input name="name" value="${esc(w.name || '')}" required placeholder="e.g. Black Leather Wallet"></div>
+          <div class="field"><label>Item Name</label><input name="name" value="${esc(w.name || '')}" required placeholder="e.g. Black Leather Wallet"></div>
           <div class="field"><label>Category</label><select name="item_category">${categoriesPlaceholder(w)}</select></div>
           <div class="report-field-row report-field-row-2">
             <div class="field"><label>Color</label><input name="color" value="${esc(w.color || '')}" placeholder="Black, Brown"></div>
@@ -1004,7 +1034,6 @@
     return reportShell(`
       <div class="report-page-head">
         <h1 class="page-title">Report ${isFound ? 'Found' : 'Lost'} Item</h1>
-        <span class="report-ai-badge">With AI Description Generator</span>
       </div>
       <p class="page-sub">${isFound
     ? 'No login required. Upload a photo, describe where you found the item, and submit for admin review before it appears on the public board.'
@@ -1173,18 +1202,43 @@
   }
 
   function lineChartSvg(monthly) {
-    const data = (monthly && monthly.length) ? monthly : [
-      { name: 'Jan', count: 8 }, { name: 'Feb', count: 12 }, { name: 'Mar', count: 10 },
-      { name: 'Apr', count: 15 }, { name: 'May', count: 18 },
-    ];
-    const w = 520; const h = 140;
+    const data = (monthly && monthly.length)
+      ? monthly
+      : [
+        { name: 'Jan', count: 0 }, { name: 'Feb', count: 0 }, { name: 'Mar', count: 0 },
+        { name: 'Apr', count: 0 }, { name: 'May', count: 0 }, { name: 'Jun', count: 0 },
+      ];
+    const w = 520;
+    const h = 180;
+    const padL = 36;
+    const padR = 16;
+    const padT = 20;
+    const padB = 36;
+    const chartW = w - padL - padR;
+    const chartH = h - padT - padB;
     const max = Math.max(...data.map((d) => d.count), 1);
-    const pts = data.map((d, i) => {
-      const x = 40 + (i / Math.max(data.length - 1, 1)) * (w - 60);
-      const y = h - 24 - (d.count / max) * (h - 44);
-      return `${x},${y}`;
-    }).join(' ');
-    return `<svg class="line-chart" viewBox="0 0 ${w} ${h}"><polyline points="${pts}"/></svg>`;
+    const coords = data.map((d, i) => {
+      const x = padL + (data.length === 1 ? chartW / 2 : (i / (data.length - 1)) * chartW);
+      const y = padT + (1 - d.count / max) * chartH;
+      return { x, y, name: d.name, count: d.count };
+    });
+    const pts = coords.map((c) => `${c.x},${c.y}`).join(' ');
+    const gridLines = [0, 0.5, 1].map((t) => {
+      const y = padT + t * chartH;
+      const val = Math.round(max * (1 - t));
+      return `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" class="line-chart-grid"/>
+        <text x="4" y="${y + 4}" class="line-chart-axis">${val}</text>`;
+    }).join('');
+    const dots = coords.map((c) => `<circle cx="${c.x}" cy="${c.y}" r="4.5" class="line-chart-dot"/>`).join('');
+    const labels = coords.map((c) => `<text x="${c.x}" y="${h - 10}" text-anchor="middle" class="line-chart-label">${esc(c.name)}</text>`).join('');
+    const values = coords.map((c) => `<text x="${c.x}" y="${c.y - 10}" text-anchor="middle" class="line-chart-value">${c.count}</text>`).join('');
+    return `<svg class="line-chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Monthly report trends">
+      ${gridLines}
+      <polyline points="${pts}"/>
+      ${dots}
+      ${values}
+      ${labels}
+    </svg>`;
   }
 
   function heatmapHtml(locs) {
@@ -1219,14 +1273,17 @@
     return map;
   }
 
+  function adminReportsActivePool(all) {
+    return all.filter((i) => i.status === 'pending' || i.status === 'approved');
+  }
+
   function adminReportsFilterItems(all) {
     const st = state();
-    const tab = st.adminReportsTab || 'all';
-    let rows = [...all];
+    const pool = adminReportsActivePool(all);
+    const tab = st.adminReportsTab || 'pending';
+    let rows = [...pool];
     if (tab === 'pending') rows = rows.filter((i) => i.status === 'pending');
     if (tab === 'approved') rows = rows.filter((i) => i.status === 'approved');
-    if (tab === 'rejected') rows = rows.filter((i) => i.status === 'rejected');
-    if (tab === 'claimed') rows = rows.filter((i) => i.status === 'claimed');
 
     const q = (st.adminReportsSearch || '').trim().toLowerCase();
     if (q) {
@@ -1252,12 +1309,10 @@
   }
 
   function adminReportsTabCounts(all) {
+    const pool = adminReportsActivePool(all);
     return {
-      all: all.length,
-      pending: all.filter((i) => i.status === 'pending').length,
-      approved: all.filter((i) => i.status === 'approved').length,
-      rejected: all.filter((i) => i.status === 'rejected').length,
-      claimed: all.filter((i) => i.status === 'claimed').length,
+      pending: pool.filter((i) => i.status === 'pending').length,
+      approved: pool.filter((i) => i.status === 'approved').length,
     };
   }
 
@@ -1455,15 +1510,18 @@
             <button type="button" class="ar-accordion-head" data-action="toggle-ar-accordion">${icon('users', 16)} Related Claims (${relatedClaims.length}) ${icon('chevron-down', 16)}</button>
             <div class="ar-accordion-body">
               <div class="ar-related-claims">${relatedClaims.length
-    ? relatedClaims.map((c) => `
+    ? relatedClaims.map((c) => {
+      const info = claimantInfo(c);
+      return `
                 <div class="ar-claim-row">
-                  <strong>${esc(c.claimant_name || c.user?.full_name || c.user?.username || 'Claimant')}</strong>
+                  <strong>${esc(info.name)}</strong>
                   <span class="ar-status-pill ar-status-${esc(c.status || 'pending')}">${esc(c.status || 'pending')}</span>
-                  ${c.claimant_student_number ? `<span class="ar-claim-meta">${esc(c.claimant_student_number)}${c.claimant_program_section ? ` · ${esc(c.claimant_program_section)}` : ''}</span>` : ''}
-                  ${c.claimant_email ? `<span class="ar-claim-meta">${esc(c.claimant_email)}${c.claimant_phone ? ` · ${esc(c.claimant_phone)}` : ''}</span>` : ''}
+                  <span class="ar-claim-meta">${esc(info.studentNumber)}${info.programSection !== '—' ? ` · ${esc(info.programSection)}` : ''}</span>
+                  <span class="ar-claim-meta">${esc(info.email)}${info.phone !== '—' ? ` · ${esc(info.phone)}` : ''}</span>
                   <p>${esc(c.description || '')}</p>
                   ${c.status === 'pending' ? `<button type="button" class="ar-text-btn" data-action="nav" data-path="admin/claims">Review in Claims module</button>` : ''}
-                </div>`).join('')
+                </div>`;
+    }).join('')
     : '<p class="ar-claim-empty">No claims for this item yet.</p>'}
               </div>
             </div>
@@ -1506,8 +1564,6 @@
           <option value="all"${state().adminReportsFilterStatus === 'all' ? ' selected' : ''}>All statuses</option>
           <option value="pending"${state().adminReportsFilterStatus === 'pending' ? ' selected' : ''}>Pending</option>
           <option value="approved"${state().adminReportsFilterStatus === 'approved' ? ' selected' : ''}>Active</option>
-          <option value="claimed"${state().adminReportsFilterStatus === 'claimed' ? ' selected' : ''}>Claimed</option>
-          <option value="rejected"${state().adminReportsFilterStatus === 'rejected' ? ' selected' : ''}>Rejected</option>
         </select>
       </label>
       <label>Location
@@ -1520,16 +1576,13 @@
   }
 
   function viewAdminReports() {
-    const all = state().adminAllItems || state().pendingItems || [];
-    const tab = state().adminReportsTab || 'all';
+    const all = adminReportsActivePool(state().adminAllItems || state().pendingItems || []);
+    const tab = state().adminReportsTab || 'pending';
     const matchMap = adminReportsMatchMap();
-    const counts = adminReportsTabCounts(all);
+    const counts = adminReportsTabCounts(state().adminAllItems || state().pendingItems || []);
     const segments = [
-      ['all', 'All', counts.all],
       ['pending', 'Pending', counts.pending],
       ['approved', 'Active', counts.approved],
-      ['rejected', 'Rejected', counts.rejected],
-      ['claimed', 'Claimed', counts.claimed],
     ];
     const filtered = adminReportsFilterItems(all);
     const pageSize = 10;
@@ -1582,77 +1635,203 @@
     };
   }
 
-  function adminClaimProofSection(c) {
-    const proof = c.proof_data
-      ? `<button type="button" class="user-id-thumb user-id-thumb-sm" data-action="open-lightbox" data-src="${esc(c.proof_data)}"><img src="${esc(c.proof_data)}" alt="Proof of ownership"></button>`
-      : '<span class="muted" style="font-size:12px">No proof uploaded</span>';
-    const idPhoto = c.id_photo_data
-      ? `<button type="button" class="user-id-thumb user-id-thumb-sm" data-action="open-lightbox" data-src="${esc(c.id_photo_data)}"><img src="${esc(c.id_photo_data)}" alt="Valid ID"></button>`
-      : '<span class="muted" style="font-size:12px">No ID uploaded</span>';
-    return `
-      <div class="verify-panel">
-        <h4>Verification Photos</h4>
-        <p style="margin:12px 0 6px"><strong>Proof of ownership</strong></p>
-        ${proof}
-        <p style="margin:16px 0 6px"><strong>Valid ID</strong></p>
-        ${idPhoto}
-      </div>`;
-  }
-
   function adminClaimCard(c) {
     const info = claimantInfo(c);
-    const guestTag = c.is_guest ? `<span class="status status-pending" style="margin-left:8px;font-size:11px">Guest</span>` : '';
-    return `<article class="card" style="margin-top:20px" id="admin-claim-${c.id}">
-      <div class="verify-grid">
-        <div class="verify-panel">
-          <h4>Claimed Item</h4>
-          <div style="display:flex;gap:12px;margin-top:12px">
-            <div style="width:80px;height:80px;border-radius:8px;overflow:hidden;background:#eee">${c.item?.photo_data ? `<img src="${esc(c.item.photo_data)}" style="width:100%;height:100%;object-fit:cover">` : icon('image', 32)}</div>
-            <div>
-              <strong>${esc(c.item?.name)}</strong>
-              <p class="muted" style="font-size:13px;margin-top:6px">${esc(c.item?.description || '')}</p>
-              <p class="muted" style="font-size:12px;margin-top:6px">${esc(c.item?.code || '')} · ${esc(c.item?.loc || '')}</p>
-              <button type="button" class="btn btn-ghost btn-sm" style="margin-top:8px;padding:0" data-action="open-item" data-id="${c.item_id}">View item page</button>
-            </div>
+    const guestTag = c.is_guest ? '<span class="claim-review-tag">Guest</span>' : '';
+    const isOpen = Boolean(state().expandedClaimIds?.[c.id]);
+    const itemPhoto = c.item?.photo_data
+      ? `<img src="${esc(c.item.photo_data)}" alt="">`
+      : icon('image', 20);
+    const proofPhoto = c.proof_data
+      ? `<button type="button" class="claim-review-photo" data-action="open-lightbox" data-src="${esc(c.proof_data)}"><img src="${esc(c.proof_data)}" alt="Proof"></button>`
+      : `<div class="claim-review-photo claim-review-photo-empty">${icon('image', 24)}</div>`;
+    const idPhoto = c.id_photo_data
+      ? `<button type="button" class="claim-review-photo" data-action="open-lightbox" data-src="${esc(c.id_photo_data)}"><img src="${esc(c.id_photo_data)}" alt="ID"></button>`
+      : `<div class="claim-review-photo claim-review-photo-empty">${icon('id-card', 24)}</div>`;
+    const itemPhotoFull = c.item?.photo_data
+      ? `<button type="button" class="claim-review-photo" data-action="open-lightbox" data-src="${esc(c.item.photo_data)}"><img src="${esc(c.item.photo_data)}" alt="Item"></button>`
+      : `<div class="claim-review-photo claim-review-photo-empty">${icon('image', 24)}</div>`;
+    return `<article class="claim-review-card${isOpen ? ' is-open' : ''}" id="admin-claim-${c.id}" data-id="${c.id}">
+      <button type="button" class="claim-review-toggle" data-action="toggle-claim-review" aria-expanded="${isOpen}">
+        <span class="claim-review-toggle-thumb">${itemPhoto}</span>
+        <span class="claim-review-toggle-main">
+          <span class="claim-review-toggle-top">
+            <strong class="claim-review-toggle-name">${esc(info.name)}</strong>
+            ${guestTag}
+          </span>
+          <span class="claim-review-toggle-item">${esc(c.item?.name || 'Unknown item')}</span>
+          <span class="claim-review-toggle-meta">${esc(c.item?.code || '')}${c.date ? ` · ${esc(c.date)}` : ''}${info.studentNumber !== '—' ? ` · ${esc(info.studentNumber)}` : ''}</span>
+        </span>
+        <span class="claim-review-toggle-chevron">${icon('chevron-down', 18)}</span>
+      </button>
+      <div class="claim-review-panel">
+        <div class="claim-review-panel-head">
+          <div>
+            <p class="claim-review-kicker">Claim details</p>
+            <p class="claim-review-meta">${esc(c.item?.loc || '')}</p>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" data-action="open-item" data-id="${c.item_id}">View item</button>
+        </div>
+        <div class="claim-review-parties">
+          <div class="claim-review-party">
+            <span class="claim-review-party-label">Claimant</span>
+            <strong>${esc(info.name)}</strong>
+            <span>${esc(info.studentNumber)}${info.programSection !== '—' ? ` · ${esc(info.programSection)}` : ''}</span>
+            <span>${esc(info.email)}${info.phone !== '—' ? ` · ${esc(info.phone)}` : ''}</span>
+          </div>
+          <div class="claim-review-party">
+            <span class="claim-review-party-label">Owner description</span>
+            <p>${esc(c.description || '—')}</p>
           </div>
         </div>
-        <div class="verify-panel">
-          <h4>Claimant Information${guestTag}</h4>
-          <p><strong>Name:</strong> ${esc(info.name)}</p>
-          <p><strong>Student Number:</strong> ${esc(info.studentNumber)}</p>
-          <p><strong>Program and Section:</strong> ${esc(info.programSection)}</p>
-          <p><strong>Contact Number:</strong> ${esc(info.phone)}</p>
-          <p><strong>Email:</strong> ${esc(info.email)}</p>
-          <p style="margin-top:8px;font-size:14px"><strong>Owner description:</strong> ${esc(c.description)}</p>
+        <div class="claim-review-photos">
+          <div class="claim-review-photo-block">
+            <span>Item</span>
+            ${itemPhotoFull}
+          </div>
+          <div class="claim-review-photo-block">
+            <span>Proof</span>
+            ${proofPhoto}
+          </div>
+          <div class="claim-review-photo-block">
+            <span>Valid ID</span>
+            ${idPhoto}
+          </div>
         </div>
-        ${adminClaimProofSection(c)}
-      </div>
-      <ul class="verify-checklist">
-        <li><input type="checkbox" id="chk-desc-${c.id}"> Correct description</li>
-        <li><input type="checkbox" id="chk-loc-${c.id}"> Correct location</li>
-        <li><input type="checkbox" id="chk-date-${c.id}"> Correct date</li>
-        <li><input type="checkbox" id="chk-proof-${c.id}"> Uploaded proof</li>
-        <li><input type="checkbox" id="chk-id-${c.id}"> Student ID verified</li>
-      </ul>
-      <div style="display:flex;gap:8px">
-        <button type="button" class="btn btn-primary btn-sm" data-action="admin-approve-claim" data-id="${c.id}">Approve Claim</button>
-        <button type="button" class="btn btn-soft btn-sm" data-action="admin-reject-claim" data-id="${c.id}">Reject Claim</button>
+        <div class="claim-review-checks">
+          <label class="claim-review-check"><input type="checkbox" id="chk-id-${c.id}"> Student ID verified</label>
+          <label class="claim-review-check"><input type="checkbox" id="chk-desc-${c.id}"> Description matches</label>
+          <label class="claim-review-check"><input type="checkbox" id="chk-loc-${c.id}"> Location matches</label>
+          <label class="claim-review-check"><input type="checkbox" id="chk-proof-${c.id}"> Proof uploaded</label>
+        </div>
+        <footer class="claim-review-actions">
+          <button type="button" class="btn btn-primary" data-action="admin-approve-claim" data-id="${c.id}">${icon('check-circle', 16)} Approve Claim</button>
+          <button type="button" class="btn btn-outline" data-action="admin-reject-claim" data-id="${c.id}">${icon('x-circle', 16)} Reject</button>
+        </footer>
       </div>
     </article>`;
   }
 
-  function adminClaimRow(c) {
-    const st = c.status || 'pending';
-    const itemSt = c.item?.status || '—';
+  function aiMatchThumb(photo, label, tone) {
+    const inner = photo
+      ? `<button type="button" class="ai-match-thumb-btn" data-action="open-lightbox" data-src="${esc(photo)}"><img src="${esc(photo)}" alt="${esc(label)}"></button>`
+      : `<div class="ai-match-thumb-empty">${icon('image', 18)}</div>`;
+    return `<div class="ai-match-thumb ai-match-thumb-${tone}">
+      <span class="ai-match-thumb-label">${esc(label)}</span>
+      ${inner}
+    </div>`;
+  }
+
+  function adminAiMatchCard(p) {
+    const score = p.match_score || p.confidence || p.confidence_pct || 0;
+    const id = p.id;
+    const lostName = p.lost_item?.name || p.lost_name || p.lost || '—';
+    const foundName = p.found_item?.name || p.found_name || p.found || '—';
+    const lostLoc = p.lost_item?.loc || p.lost_loc || '';
+    const foundLoc = p.found_item?.loc || p.found_loc || '';
+    const lostPhoto = p.lost_item?.photo_data || p.lost_photo || '';
+    const foundPhoto = p.found_item?.photo_data || p.found_photo || p.photo_data || '';
+    const reason = p.match_reason || p.reason || 'Similar attributes detected by Gemini';
+    const tier = p.confidence_label || matchTierLabel(score);
+    return `<article class="ai-match-review-card">
+      <div class="ai-match-review-photos">
+        ${aiMatchThumb(lostPhoto, 'Lost', 'lost')}
+        ${aiMatchThumb(foundPhoto, 'Found', 'found')}
+      </div>
+      <div class="ai-match-review-score">
+        <div class="${confClass(score)} ai-match-review-pct">${score}%</div>
+        <div class="ai-match-review-tier">${esc(tier)}</div>
+      </div>
+      <div class="ai-match-review-body">
+        <div class="ai-match-review-pair">
+          <div class="ai-match-review-side ai-match-review-lost">
+            <span class="ai-match-review-label">Lost report</span>
+            <strong>${esc(lostName)}</strong>
+            ${lostLoc ? `<span class="ai-match-review-loc">${icon('map-pin', 14)} ${esc(lostLoc)}</span>` : ''}
+          </div>
+          <div class="ai-match-review-divider">${icon('git-compare', 18)}</div>
+          <div class="ai-match-review-side ai-match-review-found">
+            <span class="ai-match-review-label">Found report</span>
+            <strong>${esc(foundName)}</strong>
+            ${foundLoc ? `<span class="ai-match-review-loc">${icon('map-pin', 14)} ${esc(foundLoc)}</span>` : ''}
+          </div>
+        </div>
+        <p class="ai-match-review-summary"><strong>Why it matches:</strong> ${esc(reason)}</p>
+        <div class="ai-match-review-actions">
+          <button type="button" class="btn btn-primary btn-sm" data-action="admin-match-status" data-id="${id}" data-status="approved">${icon('check-circle', 16)} Approve</button>
+          <button type="button" class="btn btn-outline btn-sm" data-action="admin-match-status" data-id="${id}" data-status="dismissed">${icon('x-circle', 16)} Reject</button>
+        </div>
+      </div>
+    </article>`;
+  }
+
+  function viewAdminAiMatches() {
+    const all = state().adminMatches || state().aiMonitor || [];
+    const pending = all.filter((p) => !p.status || p.status === 'pending');
+    const strong = pending.filter((p) => (p.match_score || p.confidence || p.confidence_pct || 0) >= 75).length;
+    const good = pending.filter((p) => {
+      const s = p.match_score || p.confidence || p.confidence_pct || 0;
+      return s >= 50 && s < 75;
+    }).length;
+    return `<div class="ai-match-review-page">
+      <header class="ai-match-review-head">
+        <div>
+          <div class="page-title-row">
+            <h1 class="page-title" style="margin:0">AI Matches</h1>
+            ${poweredByGemini({ sm: true })}
+          </div>
+          <p class="page-sub" style="margin:6px 0 0">Review smart matches between lost and found reports</p>
+        </div>
+        <div class="ai-match-review-stats">
+          <div class="ai-match-stat"><span class="ai-match-stat-value">${pending.length}</span><span class="ai-match-stat-label">Pending review</span></div>
+          <div class="ai-match-stat"><span class="ai-match-stat-value">${strong}</span><span class="ai-match-stat-label">Strong (75%+)</span></div>
+          <div class="ai-match-stat"><span class="ai-match-stat-value">${good}</span><span class="ai-match-stat-label">Possible (50–74%)</span></div>
+        </div>
+      </header>
+      <div class="ai-match-review-list">
+        ${pending.length
+    ? pending.map((p) => adminAiMatchCard(p)).join('')
+    : '<div class="empty-state">No pending AI matches. New matches appear when lost reports are submitted or found items are approved.</div>'}
+      </div>
+    </div>`;
+  }
+
+  function adminClaimResolvedCard(c) {
     const info = claimantInfo(c);
-    return `<tr>
-      <td><strong>${esc(c.item?.name || '—')}</strong></td>
-      <td>${esc(info.name)}<br><span class="muted" style="font-size:12px">${esc(info.studentNumber)}</span></td>
-      <td>${esc(c.date)}</td>
-      <td><span class="status ${statusClass(st)}">${esc(st)}</span></td>
-      <td><span class="status ${statusClass(itemSt)}">${esc(itemSt)}</span></td>
-      <td><button type="button" class="btn btn-ghost btn-sm" data-action="open-item" data-id="${c.item_id}">View</button></td>
-    </tr>`;
+    const st = c.status || 'pending';
+    const guestTag = c.is_guest ? '<span class="claim-review-tag">Guest</span>' : '';
+    const approvedDate = c.approved_at
+      ? new Date(c.approved_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : c.date;
+    const itemPhoto = c.item?.photo_data
+      ? `<img src="${esc(c.item.photo_data)}" alt="">`
+      : icon('image', 20);
+    return `<article class="claim-review-card claim-review-card-resolved claim-review-card-${esc(st)}">
+      <div class="claim-review-resolved-head">
+        <span class="claim-review-toggle-thumb">${itemPhoto}</span>
+        <div class="claim-review-resolved-main">
+          <div class="claim-review-resolved-top">
+            <strong>${esc(c.item?.name || 'Unknown item')}</strong>
+            <span class="status ${statusClass(st)}">${esc(st)}</span>
+          </div>
+          <span class="claim-review-toggle-meta">${esc(c.item?.code || '')} · Submitted ${esc(c.date)}${approvedDate && st === 'approved' ? ` · Approved ${esc(approvedDate)}` : ''}</span>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" data-action="open-item" data-id="${c.item_id}">View item</button>
+      </div>
+      <div class="claim-review-resolved-body">
+        <div class="claim-review-party">
+          <span class="claim-review-party-label">Claimant ${guestTag}</span>
+          <strong>${esc(info.name)}</strong>
+          <span>${esc(info.studentNumber)}${info.programSection !== '—' ? ` · ${esc(info.programSection)}` : ''}</span>
+          <span><a href="mailto:${esc(info.email)}">${esc(info.email)}</a>${info.phone !== '—' ? ` · ${esc(info.phone)}` : ''}</span>
+        </div>
+        <div class="claim-review-party">
+          <span class="claim-review-party-label">Ownership proof</span>
+          <p>${esc(c.description || '—')}</p>
+          ${c.admin_feedback && st === 'rejected' ? `<p class="claim-review-feedback"><strong>Admin note:</strong> ${esc(c.admin_feedback)}</p>` : ''}
+        </div>
+      </div>
+    </article>`;
   }
 
   function viewAdmin(path) {
@@ -1676,12 +1855,12 @@
         ['claimed', 'Claimed'],
       ];
       const body = tab === 'pending'
-        ? (rows.length ? rows.map(adminClaimCard).join('') : '<div class="empty-state">No pending claims</div>')
-        : `<table class="data-table">
-          <thead><tr><th>Item</th><th>Claimant</th><th>Date</th><th>Claim Status</th><th>Item Status</th><th>Action</th></tr></thead>
-          <tbody>${rows.length ? rows.map(adminClaimRow).join('') : '<tr><td colspan="6" style="text-align:center;padding:32px">No claims in this view</td></tr>'}
-          </tbody>
-        </table>`;
+        ? (rows.length
+          ? `<div class="claim-review-list">${rows.map(adminClaimCard).join('')}</div>`
+          : '<div class="empty-state">No pending claims</div>')
+        : (rows.length
+          ? `<div class="claim-review-list">${rows.map(adminClaimResolvedCard).join('')}</div>`
+          : '<div class="empty-state">No claims in this view</div>');
       return appShell(`
         <h1 class="page-title">Claims</h1>
         <p class="page-sub">Verify ownership and release recovered items</p>
@@ -1689,125 +1868,47 @@
         ${body}
       `, path);
     }
-    if (path === 'admin/users') {
-      const users = state().adminUsers || [];
-      const pending = state().pendingUsers || [];
-      return appShell(`
-        <h1 class="page-title">Users</h1>
-        <p class="page-sub">Manage student accounts and registration approvals</p>
-        ${pending.length ? `<h3 style="font-size:16px;margin:24px 0 12px">Pending Registration (${pending.length})</h3>
-          ${pending.map((u) => {
-    const hasId = (u.id_photo_data || '').length >= 30;
-    return `<article class="card admin-pending-user">
-      <div class="admin-pending-user-grid">
-        <div>
-          <p><strong>${esc(u.full_name)}</strong></p>
-          <p class="muted" style="font-size:13px;margin-top:4px">${esc(u.username)}${u.course ? ` · ${esc(u.course)}` : ''}${u.year_level ? ` · ${esc(u.year_level)}` : ''}</p>
-          ${u.email ? `<p class="muted" style="font-size:13px;margin-top:4px">${esc(u.email)}</p>` : ''}
-        </div>
-        <div class="admin-pending-user-id">
-          <span class="admin-pending-user-id-label">School ID</span>
-          ${hasId
-      ? `<button type="button" class="user-id-thumb user-id-thumb-sm" data-action="open-lightbox" data-src="${esc(u.id_photo_data)}"><img src="${esc(u.id_photo_data)}" alt="School ID"></button>`
-      : '<span class="muted" style="font-size:12px">Not uploaded</span>'}
-        </div>
-        <div class="admin-pending-user-actions">
-          <button type="button" class="btn btn-soft btn-sm" data-action="view-user" data-id="${u.id}">Review</button>
-          <button type="button" class="btn btn-primary btn-sm" data-action="approve-user" data-id="${u.id}">Activate</button>
-          <button type="button" class="btn btn-soft btn-sm" data-action="reject-user" data-id="${u.id}">Reject</button>
-        </div>
-      </div>
-    </article>`;
-  }).join('')}` : ''}
-        <table class="data-table" style="margin-top:20px">
-          <thead><tr><th>Name</th><th>Student Number</th><th>Role</th><th>Status</th><th>Last Login</th><th>Action</th></tr></thead>
-          <tbody>${users.map((u) => `<tr>
-            <td>${esc(u.full_name)}</td>
-            <td>${esc(u.username)}</td>
-            <td>${esc(u.role)}</td>
-            <td><span class="status ${statusClass(u.approval_status)}">${esc(u.approval_status)}</span></td>
-            <td>${esc(u.last_login_at || '—')}</td>
-            <td><button type="button" class="btn btn-soft btn-sm" data-action="view-user" data-id="${u.id}">View</button></td>
-          </tr>`).join('')}
-          </tbody>
-        </table>
-      `, path);
-    }
     if (path === 'admin/ai') {
-      const pairs = state().adminMatches || state().aiMonitor || [];
-      return appShell(`
-        <h1 class="page-title">AI Matches</h1>
-        <p class="page-sub">Review smart matches between lost and found reports</p>
-        <table class="data-table">
-          <thead><tr><th>Lost Item</th><th>Found Item</th><th>Match Score</th><th>Match Reason</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody>${pairs.length ? pairs.map((p) => {
-    const score = p.match_score || p.confidence || 0;
-    const id = p.id;
-    return `<tr>
-            <td><strong>${esc(p.lost_name || p.lost || p.lost_item?.name || '—')}</strong></td>
-            <td><strong>${esc(p.found_name || p.found || p.found_item?.name || '—')}</strong></td>
-            <td><span class="${confClass(score)}">${score}%</span></td>
-            <td style="max-width:240px;font-size:13px">${esc(p.match_reason || p.reason || '')}</td>
-            <td><span class="status ${statusClass(p.status === 'approved' ? 'approved' : p.status === 'claimed' ? 'claimed' : 'pending')}">${esc(p.status || 'pending')}</span></td>
-            <td>
-              <div class="admin-match-actions">
-                <button type="button" class="btn btn-ghost btn-sm" data-action="open-ai-match" data-found-id="${p.found_report_id || p.found_id || ''}" data-lost-id="${p.lost_report_id || p.lost_id || ''}">Review</button>
-                <button type="button" class="btn btn-primary btn-sm" data-action="admin-match-status" data-id="${id}" data-status="approved">Approve</button>
-                <button type="button" class="btn btn-soft btn-sm" data-action="admin-match-status" data-id="${id}" data-status="dismissed">Dismiss</button>
-                <button type="button" class="btn btn-outline btn-sm" data-action="admin-match-status" data-id="${id}" data-status="claimed">Claimed</button>
-              </div>
-            </td>
-          </tr>`;
-  }).join('') : '<tr><td colspan="6" style="text-align:center;padding:32px">No matches recorded yet</td></tr>'}
-          </tbody>
-        </table>
-      `, path);
+      return appShell(viewAdminAiMatches(), path);
     }
     if (path === 'admin/more') {
       const tab = state().adminMoreTab || 'analytics';
-      const tabs = [['analytics', 'Analytics'], ['audit', 'Audit Logs'], ['settings', 'Settings']];
+      const tabs = [['analytics', 'Analytics'], ['audit', 'Audit Logs']];
       const cats = analytics.by_category || [];
       const locs = analytics.by_building || [];
       const logs = state().activity || [];
-      const s = state().settings || {};
       let panel = '';
       if (tab === 'analytics') {
+        const catMax = Math.max(...cats.map((x) => x.count), 1);
         panel = `
           <div class="stats-row">
-            <div class="stat-card"><div class="label">Recovery Rate</div><div class="value">${analytics.claim_success_pct || 92}%</div></div>
-            <div class="stat-card"><div class="label">AI Accuracy</div><div class="value">${analytics.ai_accuracy_pct || 87}%</div></div>
-            <div class="stat-card"><div class="label">Avg Recovery</div><div class="value">${analytics.avg_recovery_days || 3.2}d</div></div>
+            <div class="stat-card"><div class="label">Total Reports</div><div class="value">${analytics.total_reports || 0}</div></div>
+            <div class="stat-card"><div class="label">Recovery Rate</div><div class="value">${analytics.claim_success_pct || 0}%</div></div>
+            <div class="stat-card"><div class="label">AI Accuracy</div><div class="value">${analytics.ai_accuracy_pct || 0}%</div></div>
+            <div class="stat-card"><div class="label">Avg Recovery</div><div class="value">${analytics.avg_recovery_days || 0}d</div></div>
           </div>
-          <div class="chart-card"><h3>Monthly Trends</h3>${lineChartSvg(analytics.monthly)}</div>
+          <div class="chart-card"><h3>Monthly Trends</h3><p class="muted chart-card-sub">Reports submitted in the last 6 months</p>${lineChartSvg(analytics.monthly)}</div>
           <div class="chart-card"><h3>Most Lost Items (by category)</h3>
-            <div class="chart-bars">${cats.slice(0, 6).map((c) => `<div class="chart-row"><span style="width:120px">${esc(c.name)}</span><div class="chart-bar-wrap"><div class="chart-bar" style="width:${(c.count / Math.max(...cats.map((x) => x.count), 1)) * 100}%"></div></div><span>${c.count}</span></div>`).join('')}</div>
+            <div class="chart-bars">${cats.length ? cats.slice(0, 6).map((c) => `<div class="chart-row"><span style="width:120px">${esc(c.name)}</span><div class="chart-bar-wrap"><div class="chart-bar" style="width:${(c.count / catMax) * 100}%"></div></div><span>${c.count}</span></div>`).join('') : '<p class="muted">No report data yet</p>'}
+            </div>
           </div>
           <div class="chart-card"><h3>Campus Location Heat Map</h3>${heatmapHtml(locs)}</div>`;
-      } else if (tab === 'audit') {
+      } else {
         panel = `
           <table class="data-table">
             <thead><tr><th>Date</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
-            <tbody>${logs.map((a) => `<tr>
+            <tbody>${logs.length ? logs.map((a) => `<tr>
               <td>${esc(a.date)}</td>
               <td>System</td>
               <td><strong>${esc(a.action)}</strong></td>
               <td>${esc(a.detail)}</td>
-            </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:32px">No entries</td></tr>'}
+            </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;padding:32px">No entries</td></tr>'}
             </tbody>
           </table>`;
-      } else {
-        panel = `
-          <div class="card" style="max-width:560px;margin-top:4px">
-            <div class="field"><label>AI Match Threshold</label><input value="${s.ai_threshold || 0.52}" disabled></div>
-            <div class="field"><label>Item Retention Period (days)</label><input value="90" disabled></div>
-            <div class="field"><label>Email Notifications</label><select disabled><option enabled>Enabled for matches and claims</option></select></div>
-            <div class="field"><label>Email Template — Claim Approved</label><textarea disabled rows="3">Your claim has been verified. Visit the Lost & Found Office during office hours.</textarea></div>
-            <p class="muted" style="font-size:13px">Categories: ${(s.categories || []).join(', ')}</p>
-          </div>`;
       }
       return appShell(`
         <h1 class="page-title">More</h1>
-        <p class="page-sub">Analytics, audit history, and system configuration</p>
+        <p class="page-sub">Analytics and audit history</p>
         ${adminTabs(tabs, tab, 'set-admin-more-tab')}
         ${panel}
       `, path);

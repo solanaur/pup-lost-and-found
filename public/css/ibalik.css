@@ -375,6 +375,39 @@ button, input, select, textarea { font: inherit; }
   font-size: 11px;
   opacity: 0.85;
 }
+.topbar-user-wrap { position: relative; }
+.topbar-user-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 200px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+.topbar-user-wrap.open .topbar-user-menu { display: block; }
+.topbar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.topbar-menu-item:hover { background: #f3f4f6; }
+.topbar-menu-item-danger { color: #b91c1c; }
+.topbar-menu-item-danger:hover { background: #fef2f2; }
 .topbar-title {
   font-family: var(--font-head);
   font-size: 18px;
@@ -1451,8 +1484,97 @@ button, input, select, textarea { font: inherit; }
 .item-hero-status-found { background: #DCFCE7; color: #166534; }
 .item-hero-status-pending { background: #FEF3C7; color: #92400E; }
 .item-hero-status-lost { background: #FEE2E2; color: #991B1B; }
+.item-hero-status-claimed { background: #E0E7FF; color: #3730A3; }
 .item-detail-focused .item-detail-title { margin: 0 0 6px; font-size: 26px; color: var(--pup-maroon); line-height: 1.2; }
-.item-detail-focused .item-detail-sub { margin: 0 0 14px; font-size: 14px; color: var(--muted); }
+.item-detail-focused .item-detail-sub { margin: 0 0 12px; font-size: 14px; color: var(--muted); }
+.item-detail-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.item-detail-chip {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid var(--border);
+  min-width: 0;
+}
+.item-detail-chip-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.item-detail-chip-value {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.item-detail-desc-block {
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.item-detail-desc-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.item-claimant-panel {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+.item-claimant-panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+  color: #166534;
+}
+.item-claimant-panel-head strong {
+  display: block;
+  font-size: 14px;
+  color: #14532d;
+}
+.item-claimant-panel-head .muted {
+  font-size: 12px;
+}
+.item-claimant-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  margin: 0;
+}
+.item-claimant-grid dt {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #4b5563;
+  margin-bottom: 2px;
+}
+.item-claimant-grid dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  word-break: break-word;
+}
 .item-detail-focused .item-essentials {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2083,7 +2205,19 @@ button, input, select, textarea { font: inherit; }
 .chart-row { display: flex; align-items: center; gap: 12px; font-size: 13px; }
 .chart-bar-wrap { flex: 1; height: 10px; background: #f3f4f6; border-radius: 999px; overflow: hidden; }
 .chart-bar { height: 100%; background: var(--pup-maroon); border-radius: 999px; }
-.line-chart polyline { fill: none; stroke: var(--pup-maroon); stroke-width: 2.5; }
+.line-chart {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+.line-chart polyline { fill: none; stroke: var(--pup-maroon); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.line-chart-grid { stroke: #e5e7eb; stroke-width: 1; }
+.line-chart-dot { fill: var(--pup-maroon); }
+.line-chart-axis,
+.line-chart-label { fill: #6b7280; font-size: 11px; }
+.line-chart-value { fill: var(--pup-maroon); font-size: 10px; font-weight: 600; }
+.chart-card-sub { font-size: 13px; margin: -8px 0 12px; }
 .heatmap-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -2409,15 +2543,63 @@ button, input, select, textarea { font: inherit; }
   flex-wrap: wrap;
 }
 .report-ai-badge {
-  background: #FEF3C7;
-  color: #92400E;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 6px 12px;
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
 }
+.gemini-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #5f6368;
+  background: linear-gradient(135deg, #f8f9ff 0%, #f3e8ff 55%, #fdf2f8 100%);
+  border: 1px solid #e0e7ff;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.gemini-badge strong {
+  background: linear-gradient(90deg, #4285F4, #9B72F2, #D96570);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 700;
+}
+.gemini-badge-sm {
+  padding: 3px 8px;
+  font-size: 10px;
+  gap: 4px;
+}
+.gemini-badge-light {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #4b5563;
+}
+.gemini-star { flex-shrink: 0; display: block; }
+.page-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.field-gemini-hint {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+.item-ai-gemini-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.item-ai-gemini-bar .muted { font-size: 12px; }
+.user-match-reason p { margin: 4px 0 0; font-size: 13px; line-height: 1.5; }
 .report-form { max-width: none !important; }
 .report-ai-layout {
   display: grid;
@@ -2430,12 +2612,14 @@ button, input, select, textarea { font: inherit; }
 .report-ai-hint {
   margin-top: 12px;
   padding: 12px;
-  background: #FFFBEB;
-  border: 1px solid #FDE68A;
+  background: linear-gradient(135deg, #f8f9ff 0%, #f3e8ff 100%);
+  border: 1px solid #e0e7ff;
   border-radius: 8px;
-  font-size: 13px;
-  color: #92400E;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #4338ca;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: flex-start;
 }
@@ -2457,9 +2641,15 @@ button, input, select, textarea { font: inherit; }
   gap: 12px;
   flex-wrap: wrap;
   padding: 14px 18px;
-  background: var(--pup-maroon);
+  background: linear-gradient(135deg, #1a73e8 0%, #7c3aed 52%, #c026d3 100%);
   color: #fff;
   font-weight: 600;
+}
+.ai-analysis-head-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .ai-analysis-title {
   display: inline-flex;
@@ -2558,6 +2748,393 @@ button, input, select, textarea { font: inherit; }
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+/* Claim review (admin) */
+.claim-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.claim-review-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+.claim-review-toggle {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+.claim-review-toggle:hover { background: #fafafa; }
+.claim-review-toggle-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f3f4f6;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: #9ca3af;
+}
+.claim-review-toggle-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.claim-review-toggle-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.claim-review-toggle-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.claim-review-toggle-name {
+  font-size: 15px;
+  color: var(--text);
+}
+.claim-review-toggle-item {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pup-maroon);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.claim-review-toggle-meta {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.claim-review-toggle-chevron {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+}
+.claim-review-card.is-open .claim-review-toggle-chevron { transform: rotate(180deg); }
+.claim-review-card.is-open .claim-review-toggle {
+  background: #fdf8f8;
+  border-bottom: 1px solid var(--border);
+}
+.claim-review-panel {
+  display: none;
+  padding: 0 16px 16px;
+}
+.claim-review-card.is-open .claim-review-panel { display: block; }
+.claim-review-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 16px;
+  margin-bottom: 14px;
+}
+.claim-review-kicker {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.claim-review-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 600;
+}
+.claim-review-meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.claim-review-parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.claim-review-party {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text);
+  padding: 12px;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid var(--border);
+}
+.claim-review-party-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.claim-review-party p { margin: 0; line-height: 1.5; }
+.claim-review-photos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.claim-review-photo-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.claim-review-photo {
+  width: 100%;
+  aspect-ratio: 4/3;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  padding: 0;
+  background: #f9fafb;
+  cursor: pointer;
+}
+.claim-review-photo img { width: 100%; height: 100%; object-fit: cover; }
+.claim-review-photo-empty {
+  display: grid;
+  place-items: center;
+  color: #9ca3af;
+  cursor: default;
+}
+.claim-review-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 12px 14px;
+  background: #fafafa;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.claim-review-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.claim-review-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 4px;
+}
+.claim-review-card-resolved {
+  padding: 0;
+}
+.claim-review-resolved-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #fafafa;
+}
+.claim-review-resolved-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.claim-review-resolved-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.claim-review-resolved-top strong {
+  font-size: 15px;
+  color: var(--pup-maroon);
+}
+.claim-review-resolved-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 14px 16px 16px;
+}
+.claim-review-feedback {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #b91c1c;
+}
+.claim-review-card-approved .claim-review-resolved-head { background: #f0fdf4; }
+.claim-review-card-rejected .claim-review-resolved-head { background: #fef2f2; }
+
+/* AI match review (admin) */
+.ai-match-review-page { display: flex; flex-direction: column; gap: 20px; }
+.ai-match-review-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.ai-match-review-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ai-match-stat {
+  min-width: 110px;
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  text-align: center;
+}
+.ai-match-stat-value {
+  display: block;
+  font-size: 28px;
+  font-family: var(--font-head);
+  font-weight: 700;
+  color: var(--pup-maroon);
+  line-height: 1.1;
+}
+.ai-match-stat-label {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ai-match-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ai-match-review-card {
+  display: grid;
+  grid-template-columns: 88px 90px 1fr;
+  gap: 18px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  align-items: start;
+}
+.ai-match-review-photos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ai-match-thumb {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ai-match-thumb-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.ai-match-thumb-btn,
+.ai-match-thumb-empty {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  padding: 0;
+  background: #f9fafb;
+}
+.ai-match-thumb-lost .ai-match-thumb-btn,
+.ai-match-thumb-lost .ai-match-thumb-empty { border-color: #fecaca; }
+.ai-match-thumb-found .ai-match-thumb-btn,
+.ai-match-thumb-found .ai-match-thumb-empty { border-color: #bbf7d0; }
+.ai-match-thumb-btn { cursor: pointer; }
+.ai-match-thumb-btn img { width: 100%; height: 100%; object-fit: cover; }
+.ai-match-thumb-empty {
+  display: grid;
+  place-items: center;
+  color: #9ca3af;
+}
+.ai-match-review-score {
+  text-align: center;
+  padding-top: 18px;
+}
+.ai-match-review-pct {
+  font-size: 32px;
+  font-family: var(--font-head);
+  font-weight: 700;
+  line-height: 1;
+}
+.ai-match-review-tier {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.ai-match-review-pair {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 16px;
+  align-items: center;
+}
+.ai-match-review-side {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.ai-match-review-lost { background: #fef2f2; border: 1px solid #fecaca; }
+.ai-match-review-found { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.ai-match-review-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.ai-match-review-loc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ai-match-review-divider { color: var(--muted); opacity: 0.6; }
+.ai-match-review-summary {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.ai-match-review-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
 }
 .admin-row-actions {
   display: flex;
@@ -2994,6 +3571,9 @@ button, input, select, textarea { font: inherit; }
   .item-detail-focused .item-detail-media .detail-gallery-main,
   .item-detail-focused .item-detail-media .detail-gallery-empty { max-height: none; }
   .item-detail-focused .item-essentials { grid-template-columns: 1fr; }
+  .item-detail-chips,
+  .item-claimant-grid,
+  .claim-review-resolved-body { grid-template-columns: 1fr; }
   .item-detail-actions-bar { flex-direction: column; align-items: stretch; }
   .item-detail-actions-buttons,
   .item-detail-actions-secondary { margin-left: 0; justify-content: flex-start; }
@@ -3104,4 +3684,16 @@ button, input, select, textarea { font: inherit; }
   .browse-search-wrap { max-width: none; flex-basis: 100%; }
   .browse-result-count { margin-left: 0; width: 100%; }
   .pub-header .brand-sub { display: none; }
+  .claim-review-parties,
+  .claim-review-photos,
+  .ai-match-review-pair,
+  .ai-match-review-card { grid-template-columns: 1fr; }
+  .ai-match-review-photos {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+  .ai-match-review-score { padding-top: 0; text-align: left; display: flex; align-items: center; gap: 12px; }
+  .ai-match-review-divider { justify-self: center; transform: rotate(90deg); }
+  .claim-review-actions { flex-direction: column; }
+  .claim-review-actions .btn { width: 100%; }
 }
