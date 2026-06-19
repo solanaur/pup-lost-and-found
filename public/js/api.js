@@ -38,11 +38,6 @@ const Api = {
 
   stats() { return this.request('/items/stats'); },
   items() { return this.request('/items'); },
-  itemPhotos(ids) {
-    const q = (ids || []).filter(Boolean).join(',');
-    if (!q) return Promise.resolve({});
-    return this.request(`/items/photos?ids=${encodeURIComponent(q)}`);
-  },
   item(id) { return this.request(`/items/${id}`); },
   myItems() { return this.request('/items/mine'); },
   pendingItems() { return this.request('/items/pending'); },

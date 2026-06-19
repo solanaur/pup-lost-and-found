@@ -46,7 +46,6 @@
 
   function itemThumb(item) {
     if (item.photo_data) return `<img src="${esc(item.photo_data)}" alt="">`;
-    if (item.has_photo) return `<span class="placeholder thumb-loading">${icon('image', 32)}</span>`;
     return `<span class="placeholder">${icon('image', 32)}</span>`;
   }
 
@@ -77,7 +76,7 @@
         ? `<span class="browse-resolved-tag">${icon('check-circle', 14)} Resolved</span>`
         : '';
     return `<article class="browse-grid-card browse-grid-card-${isFound ? 'found' : 'lost'}">
-      <div class="browse-grid-thumb" data-item-thumb="${item.id}">
+      <div class="browse-grid-thumb">
         ${itemThumb(item)}
         <span class="browse-type-badge ${badgeCls}">${badge}</span>
         <button type="button" class="browse-save-btn" data-action="browse-save" data-id="${item.id}" aria-label="Save item">${icon('bookmark', 16)}</button>
@@ -180,7 +179,7 @@
     const st = item.status === 'pending' ? 'pending' : 'found';
     const label = st === 'pending' ? 'Pending Claim' : 'Found';
     return `<article class="recent-item-card">
-      <div class="recent-item-thumb" data-item-thumb="${item.id}">${itemThumb(item)}</div>
+      <div class="recent-item-thumb">${itemThumb(item)}</div>
       <div class="recent-item-body">
         <span class="status ${statusClass(st === 'found' ? 'found' : 'pending')}">${label}</span>
         <div class="recent-item-title">${esc(item.name)}</div>

@@ -136,40 +136,6 @@ const DATA_CACHE_MS = 45000;
 function invalidateDataCache() {
   state._coreLoadedAt = 0;
   state._authedLoadedAt = 0;
-  state._photoHydrateKey = '';
-}
-
-function browsePageItems() {
-  const filtered = filterItems(state.items);
-  const PAGE_SIZE = 12;
-  const page = state.browsePage || 1;
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  return filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-}
-
-function patchItemThumbs(photos) {
-  Object.entries(photos).forEach(([id, src]) => {
-    document.querySelectorAll(`[data-item-thumb="${id}"]`).forEach((el) => {
-      el.innerHTML = `<img src="${esc(src)}" alt="">`;
-    });
-  });
-}
-
-async function hydrateVisiblePhotos(items) {
-  const ids = items.filter((i) => i.has_photo && !i.photo_data).map((i) => i.id);
-  if (!ids.length) return;
-  const key = ids.slice().sort((a, b) => a - b).join(',');
-  if (state._photoHydrateKey === key) return;
-  try {
-    const photos = await Api.itemPhotos(ids);
-    if (!photos || !Object.keys(photos).length) return;
-    state.items = state.items.map((i) => (photos[i.id] ? { ...i, photo_data: photos[i.id] } : i));
-    state._photoHydrateKey = key;
-    patchItemThumbs(photos);
-  } catch (e) {
-    console.warn('[photos]', e.message);
-  }
 }
 
 async function loadCore(force = false) {
@@ -397,13 +363,6 @@ async function render() {
   bindEvents();
   syncAdminReportsFilters();
   hydrateIcons();
-
-  if (path === 'browse') {
-    hydrateVisiblePhotos(browsePageItems());
-  } else if (path === 'home' || path === 'dashboard') {
-    const recent = state.items.filter((i) => i.type === 'found' && i.status === 'approved').slice(0, 4);
-    hydrateVisiblePhotos(recent);
-  }
 }
 
 function collectAdminReportsFilters() {
