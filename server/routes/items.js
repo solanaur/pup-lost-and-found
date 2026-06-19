@@ -32,8 +32,7 @@ router.get('/stats', (_req, res) => {
 router.get('/', authOptional, (req, res) => {
   const rows = listItemsWithUser(
     (i) => i.status === 'approved' || i.status === 'claimed',
-    req.user && req.user.role === 'admin',
-    { lite: true }
+    req.user && req.user.role === 'admin'
   );
   res.json(rows);
 });

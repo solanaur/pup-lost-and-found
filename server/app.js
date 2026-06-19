@@ -56,8 +56,9 @@ function createApp(options = {}) {
       };
       res.json = wrapSend(res.json.bind(res));
       res.send = wrapSend(res.send.bind(res));
+    } else {
+      res.on('finish', () => { resetStore(); });
     }
-    // Keep hydrated mem on GET so warm Netlify functions skip re-fetching Supabase.
 
     next();
   });
