@@ -65,6 +65,19 @@ router.get('/track/:code', (req, res) => {
   res.json(trackToResponse(item));
 });
 
+router.get('/photos', (req, res) => {
+  const ids = String(req.query.ids || '')
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => n > 0);
+  const photos = {};
+  ids.forEach((id) => {
+    const item = getItem(id);
+    if (item?.photo_data) photos[id] = item.photo_data;
+  });
+  res.json(photos);
+});
+
 router.get('/admin/tracker', requireAuth, requireRole('admin'), (_req, res) => {
   const { getStats } = require('../db');
   const s = getStats();
