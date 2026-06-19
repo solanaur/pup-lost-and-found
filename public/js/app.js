@@ -131,7 +131,15 @@ window.__APP__ = {
   toast,
 };
 
-async function loadCore() {
+const DATA_CACHE_MS = 45000;
+
+function invalidateDataCache() {
+  state._coreLoadedAt = 0;
+  state._authedLoadedAt = 0;
+}
+
+async function loadCore(force = false) {
+  if (!force && state._coreLoadedAt && Date.now() - state._coreLoadedAt < DATA_CACHE_MS) return;
   try {
     const [stats, items, settings] = await Promise.all([
       Api.stats(),
@@ -141,6 +149,7 @@ async function loadCore() {
     state.stats = stats;
     state.items = items;
     state.settings = settings;
+    state._coreLoadedAt = Date.now();
   } catch (e) {
     console.warn(e);
   }
@@ -162,8 +171,9 @@ async function loadReportMatches() {
 }
 
 async function reloadAfterMutation() {
-  await loadCore();
-  if (isAuthed()) await loadAuthed();
+  invalidateDataCache();
+  await loadCore(true);
+  if (isAuthed()) await loadAuthed(true);
 }
 
 function toTrackView(item) {
@@ -204,8 +214,9 @@ function normalizeTrackCode(code) {
   return String(code || '').trim().toUpperCase();
 }
 
-async function loadAuthed() {
+async function loadAuthed(force = false) {
   if (!isAuthed()) return;
+  if (!force && state._authedLoadedAt && Date.now() - state._authedLoadedAt < DATA_CACHE_MS) return;
   try {
     const tasks = [Api.notifications().then((n) => { state.notifications = n; })];
     if (isStudent()) {
@@ -229,6 +240,7 @@ async function loadAuthed() {
       tasks.push(Api.myMatches().then((m) => { state.userMatches = m; }).catch(() => { state.userMatches = []; }));
     }
     await Promise.all(tasks);
+    state._authedLoadedAt = Date.now();
   } catch (e) {
     console.warn(e);
   }
@@ -302,7 +314,6 @@ async function render() {
         ai_detected_category: state.currentItem.ai_detected_category,
         ai_detected_colors: state.currentItem.ai_detected_colors,
         building: state.currentItem.building,
-        photo_data: state.currentItem.photo_data,
         created_at: state.currentItem.created_at,
         date_lost: state.currentItem.date_lost,
       });
@@ -446,6 +457,7 @@ function bindEvents() {
         if (!window.confirm('Are you sure you want to log out?')) return;
         Api.setToken('');
         state.user = null;
+        invalidateDataCache();
         nav('home');
         return;
       }
@@ -774,6 +786,7 @@ function bindEvents() {
         const res = await Api.login({ username: fd.get('username'), password: fd.get('password') });
         Api.setToken(res.token);
         state.user = res.user;
+        invalidateDataCache();
         toast('Signed in successfully');
         nav(res.user.role === 'admin' ? 'admin' : 'dashboard');
       } catch (err) { toast(err.message); }

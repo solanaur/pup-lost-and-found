@@ -472,9 +472,11 @@ function itemClaimantResponse(item, includeDetails) {
   return claim ? claimantSnapshotFromClaim(claim) : null;
 }
 
-function itemToResponse(item, includeSubmitter) {
+function itemToResponse(item, includeSubmitter, opts = {}) {
   const u = item.submitted_by ? getUserById(item.submitted_by) : null;
   const { buildTrackUrl } = require('./email');
+  const rawPhoto = item.photo_data || '';
+  const photo_data = opts.lite && rawPhoto.startsWith('data:') ? '' : rawPhoto;
   return {
     id: item.id,
     code: item.code,
@@ -489,7 +491,8 @@ function itemToResponse(item, includeSubmitter) {
     loc: item.loc,
     description: item.description || '',
     emoji: item.emoji || '📦',
-    photo_data: item.photo_data || '',
+    photo_data,
+    has_photo: Boolean(rawPhoto),
     status: item.status,
     date: formatDate(item.created_at),
     created_at: item.created_at,
@@ -572,8 +575,8 @@ function listItems(filterFn) {
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
-function listItemsWithUser(filterFn, includeSubmitter) {
-  return listItems(filterFn).map((i) => itemToResponse(i, includeSubmitter));
+function listItemsWithUser(filterFn, includeSubmitter, opts) {
+  return listItems(filterFn).map((i) => itemToResponse(i, includeSubmitter, opts));
 }
 
 function getItem(id) {
